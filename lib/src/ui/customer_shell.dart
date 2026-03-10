@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../api.dart';
 import '../models.dart';
@@ -62,10 +63,26 @@ class _CustomerShellState extends State<CustomerShell> {
           });
         },
         destinations: const <Widget>[
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.assignment_outlined), selectedIcon: Icon(Icons.assignment), label: 'Bookings'),
-          NavigationDestination(icon: Icon(Icons.notifications_outlined), selectedIcon: Icon(Icons.notifications), label: 'Alerts'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Account'),
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.assignment_outlined),
+            selectedIcon: Icon(Icons.assignment),
+            label: 'Bookings',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.notifications_outlined),
+            selectedIcon: Icon(Icons.notifications),
+            label: 'Alerts',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Account',
+          ),
         ],
       ),
     );
@@ -91,7 +108,26 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
   final _cityController = TextEditingController();
 
   bool _loading = true;
+  bool _locatingCity = false;
   List<ServiceCategory> _categories = <ServiceCategory>[];
+
+  bool _looksLikeHtml(String value) {
+    final lower = value.toLowerCase();
+    return lower.contains('<!doctype html') ||
+        lower.contains('<html') ||
+        lower.contains('</html>') ||
+        lower.contains('<body') ||
+        value.contains('<') ||
+        value.contains('>');
+  }
+
+  String _normalizeCity(String raw) {
+    final city = raw.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (city.isEmpty) return '';
+    if (_looksLikeHtml(city)) return '';
+    if (city.length > 64) return '';
+    return city;
+  }
 
   @override
   void initState() {
@@ -108,9 +144,13 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
   }
 
   Future<void> _loadSavedCity() async {
-    final city = await TokenStore.readCity();
+    final savedCity = await TokenStore.readCity();
+    final city = _normalizeCity(savedCity ?? '');
+    if (savedCity != null && city != savedCity.trim()) {
+      await TokenStore.saveCity(city);
+    }
     if (!mounted) return;
-    _cityController.text = city ?? '';
+    _cityController.text = city;
   }
 
   Future<void> _loadCategories() async {
@@ -142,18 +182,32 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
   }
 
   Future<void> _saveCity() async {
-    final city = _cityController.text.trim();
+    final city = _normalizeCity(_cityController.text);
     if (city.isEmpty) {
-      showApiError(context, const ApiException('City cannot be empty'));
+      showApiError(context, const ApiException('Enter a valid city name'));
+      return;
+    }
+    _cityController.text = city;
+    await _saveCityValue(city);
+  }
+
+  Future<void> _saveCityValue(String city, {bool showMessage = true}) async {
+    final normalizedCity = _normalizeCity(city);
+    if (normalizedCity.isEmpty) {
+      if (showMessage && mounted) {
+        showApiError(context, const ApiException('Enter a valid city name'));
+      }
       return;
     }
 
     try {
-      await widget.api.saveCustomerCity(city);
+      await widget.api.saveCustomerCity(normalizedCity);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('City saved')),
-      );
+      if (showMessage) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('City saved')));
+      }
     } catch (error) {
       if (error is ApiException && error.statusCode == 401) {
         widget.onSessionExpired();
@@ -163,97 +217,726 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
     }
   }
 
+  Future<void> _useDeviceLocation() async {
+    setState(() {
+      _locatingCity = true;
+    });
+    try {
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      if (!enabled) {
+        throw const ApiException('Enable location in emulator settings first');
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw const ApiException('Location permission denied');
+      }
+
+      var position = await Geolocator.getLastKnownPosition();
+      position ??= await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+
+      final geocode = await widget.api.reverseGeocode(
+        lat: position.latitude,
+        lon: position.longitude,
+      );
+
+      var city = _normalizeCity(geocode.city);
+      if (city.isEmpty && geocode.displayName.isNotEmpty) {
+        city = _normalizeCity(geocode.displayName.split(',').first);
+      }
+      if (city.isEmpty) {
+        throw const ApiException(
+          'Could not determine a valid city from coordinates',
+        );
+      }
+
+      _cityController.text = city;
+      await _saveCityValue(city, showMessage: false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Location detected: $city')));
+      await _loadCategories();
+    } catch (error) {
+      if (!mounted) return;
+      showApiError(context, error);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _locatingCity = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _openCategory(ServiceCategory category) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CategoryDetailsPage(
+          api: widget.api,
+          category: category,
+          currentCity: _normalizeCity(_cityController.text),
+          onSessionExpired: widget.onSessionExpired,
+        ),
+      ),
+    );
+  }
+
+  List<_HomeSpotlight> _spotlightsFor(List<ServiceCategory> categories) {
+    final spotlight = <_HomeSpotlight>[];
+    for (final category in categories) {
+      for (final service in category.services) {
+        spotlight.add(_HomeSpotlight(category: category, service: service));
+      }
+    }
+    spotlight.sort((a, b) {
+      final aPrice = a.service.startsFrom ?? a.service.basePrice;
+      final bPrice = b.service.startsFrom ?? b.service.basePrice;
+      return aPrice.compareTo(bPrice);
+    });
+    return spotlight.take(10).toList();
+  }
+
+  double? _lowestPrice(ServiceCategory category) {
+    final prices = category.services
+        .map<double?>((service) {
+          final startsFrom = service.startsFrom;
+          if (startsFrom != null && startsFrom > 0) return startsFrom;
+          return service.basePrice > 0 ? service.basePrice : null;
+        })
+        .whereType<double>()
+        .toList();
+    if (prices.isEmpty) return null;
+    prices.sort();
+    return prices.first;
+  }
+
+  String _formatPrice(double value) {
+    if (value == value.roundToDouble()) {
+      return '\u20B9${value.toStringAsFixed(0)}';
+    }
+    return '\u20B9${value.toStringAsFixed(2)}';
+  }
+
+  Widget _buildImage(
+    String url, {
+    required double height,
+    required double width,
+    BorderRadius? borderRadius,
+    IconData fallbackIcon = Icons.handyman_outlined,
+  }) {
+    final fallback = Container(
+      height: height,
+      width: width,
+      color: const Color(0xFFE9EEF4),
+      alignment: Alignment.center,
+      child: Icon(fallbackIcon, color: const Color(0xFF58738D)),
+    );
+
+    final image = url.isEmpty
+        ? fallback
+        : Image.network(
+            url,
+            height: height,
+            width: width,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => fallback,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return fallback;
+            },
+          );
+    if (borderRadius == null) {
+      return image;
+    }
+    return ClipRRect(borderRadius: borderRadius, child: image);
+  }
+
+  Widget _buildHeroSection() {
+    final city = _normalizeCity(_cityController.text);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[Color(0xFF163450), Color(0xFF2A6D92)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.flash_on_rounded, color: Colors.white),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Home Services, Delivered Fast',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            city.isEmpty
+                ? 'Set your city to discover nearby professionals.'
+                : 'Serving $city right now.',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.9),
+              fontSize: 13,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              _heroTag(Icons.verified_user_outlined, 'Verified pros'),
+              _heroTag(Icons.timer_outlined, 'Quick slots'),
+              _heroTag(Icons.workspace_premium_outlined, 'Top rated'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _heroTag(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 14, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(text, style: const TextStyle(color: Colors.white, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationAndSearchCard() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE1E8EF)),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x0A10223D),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: TextField(
+                  controller: _cityController,
+                  textInputAction: TextInputAction.done,
+                  decoration: const InputDecoration(
+                    labelText: 'Service city',
+                    prefixIcon: Icon(Icons.location_city_outlined),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filledTonal(
+                tooltip: 'Use emulator location',
+                onPressed: _locatingCity ? null : _useDeviceLocation,
+                icon: _locatingCity
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.my_location_rounded),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: _locatingCity ? null : _saveCity,
+                child: const Text('Update'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _searchController,
+            onChanged: (_) => setState(() {}),
+            textInputAction: TextInputAction.search,
+            decoration: const InputDecoration(
+              hintText: 'Search services or categories',
+              prefixIcon: Icon(Icons.search),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopCategories(List<ServiceCategory> categories) {
+    return SizedBox(
+      height: 108,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: categories.length > 8 ? 8 : categories.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final category = categories[index];
+          return InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => _openCategory(category),
+            child: Container(
+              width: 120,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF2F6FA),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.design_services_outlined, size: 18),
+                  ),
+                  const Spacer(),
+                  Text(
+                    category.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildQuickActions(List<ServiceCategory> categories) {
+    final actions = categories.take(4).toList();
+    if (actions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Row(
+      children: actions
+          .map(
+            (category) => Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => _openCategory(category),
+                  child: Ink(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F7FB),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      children: <Widget>[
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.bolt_rounded, size: 18),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          category.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Widget _buildSpotlightStrip(List<_HomeSpotlight> spotlight) {
+    return SizedBox(
+      height: 205,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: spotlight.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final item = spotlight[index];
+          final price = item.service.startsFrom ?? item.service.basePrice;
+          return InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () => _openCategory(item.category),
+            child: Container(
+              width: 176,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE2E9F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  _buildImage(
+                    item.service.imageUrl,
+                    height: 112,
+                    width: 176,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(18),
+                      topRight: Radius.circular(18),
+                    ),
+                    fallbackIcon: Icons.room_service_outlined,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                    child: Text(
+                      item.service.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
+                    child: Text(
+                      item.category.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF5A6C7C),
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                    child: Text(
+                      'Starts at ${_formatPrice(price)}',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: Color(0xFF0F5B88),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCategoryCard(ServiceCategory category) {
+    final description = category.description.trim().isEmpty
+        ? '${category.services.length} services available'
+        : category.description.trim();
+    final price = _lowestPrice(category);
+
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => _openCategory(category),
+        child: Ink(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE2E9F0)),
+            boxShadow: const <BoxShadow>[
+              BoxShadow(
+                color: Color(0x090F2A3D),
+                blurRadius: 14,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: <Widget>[
+              _buildImage(
+                category.imageUrl,
+                height: 88,
+                width: 88,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      category.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: Color(0xFF5D6E7D),
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      price == null
+                          ? 'View services'
+                          : 'From ${_formatPrice(price)}',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: Color(0xFF0F5B88),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: Color(0xFF63798E)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final query = _searchController.text.trim().toLowerCase();
     final filtered = _categories.where((category) {
       if (category.name.toLowerCase().contains(query)) return true;
-      return category.services.any((svc) => svc.name.toLowerCase().contains(query));
+      return category.services.any(
+        (svc) => svc.name.toLowerCase().contains(query),
+      );
     }).toList();
+    final spotlight = _spotlightsFor(filtered);
 
-    return Column(
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              const Text('Services', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: TextField(
-                      controller: _cityController,
-                      decoration: const InputDecoration(
-                        labelText: 'City',
-                        prefixIcon: Icon(Icons.location_city_outlined),
+    if (_loading) {
+      return loadingView();
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadCategories,
+      child: ColoredBox(
+        color: const Color(0xFFF6F8FB),
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: <Widget>[
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: _buildHeroSection(),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: _buildLocationAndSearchCard(),
+              ),
+            ),
+            if (filtered.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      const Text(
+                        'Quick Book',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _buildQuickActions(filtered),
+                    ],
+                  ),
+                ),
+              ),
+            if (filtered.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      const Text(
+                        'Top Categories',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Popular choices for your home',
+                        style: TextStyle(
+                          color: Color(0xFF5D6E7D),
+                          fontSize: 12.5,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _buildTopCategories(filtered),
+                    ],
+                  ),
+                ),
+              ),
+            if (spotlight.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 2, 0, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+                        child: Text(
+                          'Most Booked Services',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      _buildSpotlightStrip(spotlight),
+                    ],
+                  ),
+                ),
+              ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      filtered.isEmpty ? 'Services' : 'All Services',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton.tonal(
-                    onPressed: _saveCity,
-                    child: const Text('Save'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _searchController,
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  hintText: 'Search service/category',
-                  prefixIcon: Icon(Icons.search),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: _loading
-              ? loadingView()
-              : RefreshIndicator(
-                  onRefresh: _loadCategories,
-                  child: filtered.isEmpty
-                      ? ListView(
-                          children: <Widget>[emptyView('No services found')],
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(12),
-                          itemCount: filtered.length,
-                          itemBuilder: (context, index) {
-                            final category = filtered[index];
-                            return Card(
-                              child: ListTile(
-                                title: Text(category.name),
-                                subtitle: Text(
-                                  category.description.isEmpty
-                                      ? '${category.services.length} services'
-                                      : category.description,
-                                ),
-                                trailing: const Icon(Icons.chevron_right),
-                                onTap: () async {
-                                  await Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => CategoryDetailsPage(
-                                        api: widget.api,
-                                        category: category,
-                                        currentCity: _cityController.text.trim(),
-                                        onSessionExpired: widget.onSessionExpired,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            );
-                          },
+                    if (filtered.isNotEmpty)
+                      Text(
+                        '${filtered.length} categories near you',
+                        style: const TextStyle(
+                          color: Color(0xFF5D6E7D),
+                          fontSize: 12.5,
                         ),
+                      ),
+                  ],
                 ),
+              ),
+            ),
+            if (filtered.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: emptyView(
+                  query.isEmpty
+                      ? 'No services found.'
+                      : 'No services found for "$query".',
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final category = filtered[index];
+                    return Padding(
+                      padding: EdgeInsets.only(
+                        bottom: index == filtered.length - 1 ? 0 : 12,
+                      ),
+                      child: _buildCategoryCard(category),
+                    );
+                  }, childCount: filtered.length),
+                ),
+              ),
+          ],
         ),
-      ],
+      ),
     );
   }
+}
+
+class _HomeSpotlight {
+  const _HomeSpotlight({required this.category, required this.service});
+
+  final ServiceCategory category;
+  final ServiceItem service;
 }
 
 class CategoryDetailsPage extends StatefulWidget {
@@ -282,7 +965,9 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
   @override
   void initState() {
     super.initState();
-    _selectedService = widget.category.services.isNotEmpty ? widget.category.services.first : null;
+    _selectedService = widget.category.services.isNotEmpty
+        ? widget.category.services.first
+        : null;
     _loadProviders();
   }
 
@@ -358,42 +1043,48 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
             child: _loading
                 ? loadingView()
                 : _providers.isEmpty
-                    ? emptyView('No providers found for this service in selected city')
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(12),
-                        itemCount: _providers.length,
-                        itemBuilder: (context, index) {
-                          final provider = _providers[index];
-                          return Card(
-                            child: ListTile(
-                              title: Text(provider.fullName.isEmpty ? provider.username : provider.fullName),
-                              subtitle: Text(
-                                'Rating: ${provider.rating.toStringAsFixed(1)}  •  '
-                                'Price: ${provider.price?.toStringAsFixed(2) ?? 'N/A'}\n'
-                                '${provider.city.isEmpty ? 'Local provider' : provider.city}',
-                              ),
-                              isThreeLine: true,
-                              trailing: FilledButton(
-                                onPressed: () async {
-                                  final service = _selectedService;
-                                  if (service == null) return;
-                                  await Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => CreateBookingPage(
-                                        api: widget.api,
-                                        service: service,
-                                        provider: provider,
-                                        onSessionExpired: widget.onSessionExpired,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                child: const Text('Book'),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                ? emptyView(
+                    'No providers found for this service in selected city',
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: _providers.length,
+                    itemBuilder: (context, index) {
+                      final provider = _providers[index];
+                      return Card(
+                        child: ListTile(
+                          title: Text(
+                            provider.fullName.isEmpty
+                                ? provider.username
+                                : provider.fullName,
+                          ),
+                          subtitle: Text(
+                            'Rating: ${provider.rating.toStringAsFixed(1)}  •  '
+                            'Price: ${provider.price?.toStringAsFixed(2) ?? 'N/A'}\n'
+                            '${provider.city.isEmpty ? 'Local provider' : provider.city}',
+                          ),
+                          isThreeLine: true,
+                          trailing: FilledButton(
+                            onPressed: () async {
+                              final service = _selectedService;
+                              if (service == null) return;
+                              await Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => CreateBookingPage(
+                                    api: widget.api,
+                                    service: service,
+                                    provider: provider,
+                                    onSessionExpired: widget.onSessionExpired,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: const Text('Book'),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -451,7 +1142,9 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
 
   Future<void> _loadProviderServices() async {
     try {
-      final services = await widget.api.fetchProviderServicesForBooking(widget.provider.userId);
+      final services = await widget.api.fetchProviderServicesForBooking(
+        widget.provider.userId,
+      );
       if (!mounted) return;
       setState(() {
         _providerServices = services;
@@ -537,7 +1230,11 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
             Card(
               child: ListTile(
                 title: Text(widget.service.name),
-                subtitle: Text(widget.provider.fullName.isEmpty ? widget.provider.username : widget.provider.fullName),
+                subtitle: Text(
+                  widget.provider.fullName.isEmpty
+                      ? widget.provider.username
+                      : widget.provider.fullName,
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -549,12 +1246,16 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
             const SizedBox(height: 12),
             TextField(
               controller: _locationController,
-              decoration: const InputDecoration(labelText: 'Customer location (optional)'),
+              decoration: const InputDecoration(
+                labelText: 'Customer location (optional)',
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _landmarkController,
-              decoration: const InputDecoration(labelText: 'Landmark (optional)'),
+              decoration: const InputDecoration(
+                labelText: 'Landmark (optional)',
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -589,9 +1290,18 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
                   child: DropdownButtonFormField<String>(
                     initialValue: _timeSlot,
                     items: const <DropdownMenuItem<String>>[
-                      DropdownMenuItem(value: 'MORNING', child: Text('Morning')),
-                      DropdownMenuItem(value: 'AFTERNOON', child: Text('Afternoon')),
-                      DropdownMenuItem(value: 'EVENING', child: Text('Evening')),
+                      DropdownMenuItem(
+                        value: 'MORNING',
+                        child: Text('Morning'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'AFTERNOON',
+                        child: Text('Afternoon'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'EVENING',
+                        child: Text('Evening'),
+                      ),
                     ],
                     onChanged: (value) {
                       if (value != null) {
@@ -606,7 +1316,10 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
               ],
             ),
             const SizedBox(height: 12),
-            const Text('Select services', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Select services',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             if (_loadingServices)
               const LinearProgressIndicator()
@@ -712,7 +1425,9 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
                       5,
                       (index) => DropdownMenuItem<int>(
                         value: index + 1,
-                        child: Text('${index + 1} star${index == 0 ? '' : 's'}'),
+                        child: Text(
+                          '${index + 1} star${index == 0 ? '' : 's'}',
+                        ),
                       ),
                     ),
                     onChanged: (value) {
@@ -810,18 +1525,26 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
                       ),
                       Chip(
                         label: Text(prettyStatus(booking.status)),
-                        backgroundColor: statusColor(booking.status).withValues(alpha: 0.15),
+                        backgroundColor: statusColor(
+                          booking.status,
+                        ).withValues(alpha: 0.15),
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
-                  Text('Date: ${booking.scheduledDate}  •  ${prettyStatus(booking.timeSlot)}'),
-                  Text('Provider: ${booking.providerFullName.isEmpty ? booking.providerUsername : booking.providerFullName}'),
+                  Text(
+                    'Date: ${booking.scheduledDate}  •  ${prettyStatus(booking.timeSlot)}',
+                  ),
+                  Text(
+                    'Provider: ${booking.providerFullName.isEmpty ? booking.providerUsername : booking.providerFullName}',
+                  ),
                   const SizedBox(height: 6),
                   Text('Address: ${booking.address}'),
                   const SizedBox(height: 10),
                   if (booking.hasReview)
-                    Text('Review: ${booking.reviewRating ?? '-'} / 5 • ${booking.reviewComment}')
+                    Text(
+                      'Review: ${booking.reviewRating ?? '-'} / 5 • ${booking.reviewComment}',
+                    )
                   else if (booking.status == 'COMPLETED')
                     FilledButton.tonal(
                       onPressed: () => _openReviewDialog(booking),
@@ -936,7 +1659,11 @@ class _NotificationsTabState extends State<NotificationsTab> {
                       itemBuilder: (context, index) {
                         final item = _items[index];
                         return ListTile(
-                          leading: Icon(item.isRead ? Icons.notifications_none : Icons.notifications_active),
+                          leading: Icon(
+                            item.isRead
+                                ? Icons.notifications_none
+                                : Icons.notifications_active,
+                          ),
                           title: Text(item.message),
                           subtitle: Text(item.createdAt),
                           trailing: item.isRead
@@ -1013,8 +1740,12 @@ class _AccountTabState extends State<AccountTab> {
   }
 
   Future<void> _updateProfile() async {
-    if (_fullNameController.text.trim().isEmpty || _emailController.text.trim().isEmpty) {
-      showApiError(context, const ApiException('Full name and email are required'));
+    if (_fullNameController.text.trim().isEmpty ||
+        _emailController.text.trim().isEmpty) {
+      showApiError(
+        context,
+        const ApiException('Full name and email are required'),
+      );
       return;
     }
 
@@ -1028,9 +1759,9 @@ class _AccountTabState extends State<AccountTab> {
       );
       await widget.onRefreshProfile();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile updated')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Profile updated')));
     } catch (error) {
       if (error is ApiException && error.statusCode == 401) {
         widget.onSessionExpired();
@@ -1050,7 +1781,10 @@ class _AccountTabState extends State<AccountTab> {
     if (_currentPasswordController.text.isEmpty ||
         _newPasswordController.text.isEmpty ||
         _confirmPasswordController.text.isEmpty) {
-      showApiError(context, const ApiException('All password fields are required'));
+      showApiError(
+        context,
+        const ApiException('All password fields are required'),
+      );
       return;
     }
 
@@ -1096,7 +1830,10 @@ class _AccountTabState extends State<AccountTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  const Text('Profile', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Profile',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 8),
                   Text('Username: ${widget.profile.username}'),
                   Text('Phone: ${widget.profile.phone}'),
@@ -1112,7 +1849,9 @@ class _AccountTabState extends State<AccountTab> {
                   const SizedBox(height: 12),
                   FilledButton(
                     onPressed: _updatingProfile ? null : _updateProfile,
-                    child: Text(_updatingProfile ? 'Saving...' : 'Update Profile'),
+                    child: Text(
+                      _updatingProfile ? 'Saving...' : 'Update Profile',
+                    ),
                   ),
                 ],
               ),
@@ -1125,29 +1864,40 @@ class _AccountTabState extends State<AccountTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Change Password',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _currentPasswordController,
                     obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Current Password'),
+                    decoration: const InputDecoration(
+                      labelText: 'Current Password',
+                    ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _newPasswordController,
                     obscureText: true,
-                    decoration: const InputDecoration(labelText: 'New Password'),
+                    decoration: const InputDecoration(
+                      labelText: 'New Password',
+                    ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _confirmPasswordController,
                     obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Confirm Password'),
+                    decoration: const InputDecoration(
+                      labelText: 'Confirm Password',
+                    ),
                   ),
                   const SizedBox(height: 12),
                   FilledButton.tonal(
                     onPressed: _changingPassword ? null : _changePassword,
-                    child: Text(_changingPassword ? 'Updating...' : 'Change Password'),
+                    child: Text(
+                      _changingPassword ? 'Updating...' : 'Change Password',
+                    ),
                   ),
                 ],
               ),

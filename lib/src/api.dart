@@ -15,6 +15,13 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+class ReverseGeocodeResult {
+  const ReverseGeocodeResult({required this.city, required this.displayName});
+
+  final String city;
+  final String displayName;
+}
+
 class ApiService {
   ApiService({http.Client? client}) : _client = client ?? http.Client();
 
@@ -25,7 +32,9 @@ class ApiService {
     final base = AppConfig.baseUrl.endsWith('/')
         ? AppConfig.baseUrl.substring(0, AppConfig.baseUrl.length - 1)
         : AppConfig.baseUrl;
-    return Uri.parse('$base$normalized').replace(queryParameters: query?.isEmpty ?? true ? null : query);
+    return Uri.parse(
+      '$base$normalized',
+    ).replace(queryParameters: query?.isEmpty ?? true ? null : query);
   }
 
   Future<dynamic> _request(
@@ -91,7 +100,10 @@ class ApiService {
     }
 
     throw ApiException(
-      _extractErrorMessage(decoded, fallback: 'Request failed (${response.statusCode})'),
+      _extractErrorMessage(
+        decoded,
+        fallback: 'Request failed (${response.statusCode})',
+      ),
       statusCode: response.statusCode,
     );
   }
@@ -107,9 +119,17 @@ class ApiService {
     }
   }
 
-  String _extractErrorMessage(dynamic decoded, {String fallback = 'Request failed'}) {
+  String _extractErrorMessage(
+    dynamic decoded, {
+    String fallback = 'Request failed',
+  }) {
     if (decoded is Map<String, dynamic>) {
-      const knownKeys = <String>['error', 'detail', 'message', 'non_field_errors'];
+      const knownKeys = <String>[
+        'error',
+        'detail',
+        'message',
+        'non_field_errors',
+      ];
       for (final key in knownKeys) {
         final val = decoded[key];
         if (val is String && val.trim().isNotEmpty) {
@@ -126,9 +146,22 @@ class ApiService {
       }
     }
     if (decoded is String && decoded.trim().isNotEmpty) {
-      return decoded;
+      final message = decoded.trim();
+      final lower = message.toLowerCase();
+      if (lower.contains('<!doctype html') || lower.contains('<html')) {
+        return fallback;
+      }
+      return message.length > 280 ? '${message.substring(0, 280)}...' : message;
     }
     return fallback;
+  }
+
+  bool _looksLikeHtml(String value) {
+    final normalized = value.toLowerCase();
+    return normalized.contains('<!doctype html') ||
+        normalized.contains('<html') ||
+        normalized.contains('</html>') ||
+        normalized.contains('<body');
   }
 
   Future<bool> _refreshToken() async {
@@ -164,14 +197,14 @@ class ApiService {
     return true;
   }
 
-  Future<void> loginPassword({required String username, required String password}) async {
+  Future<void> loginPassword({
+    required String username,
+    required String password,
+  }) async {
     final body = await _request(
       'POST',
       '/api/token/',
-      body: {
-        'username': username,
-        'password': password,
-      },
+      body: {'username': username, 'password': password},
     );
 
     if (body is! Map<String, dynamic>) {
@@ -195,14 +228,14 @@ class ApiService {
     );
   }
 
-  Future<void> verifyLoginOtp({required String phone, required String otp}) async {
+  Future<void> verifyLoginOtp({
+    required String phone,
+    required String otp,
+  }) async {
     final body = await _request(
       'POST',
       '/api/accounts/auth/otp/verify/',
-      body: {
-        'phone': phone,
-        'otp': otp,
-      },
+      body: {'phone': phone, 'otp': otp},
     );
 
     if (body is! Map<String, dynamic>) {
@@ -246,11 +279,7 @@ class ApiService {
     if (otp != null && otp.trim().isNotEmpty) {
       payload['otp'] = otp.trim();
     }
-    await _request(
-      'POST',
-      '/api/accounts/signup/customer/',
-      body: payload,
-    );
+    await _request('POST', '/api/accounts/signup/customer/', body: payload);
   }
 
   Future<void> signupProvider({
@@ -277,11 +306,7 @@ class ApiService {
     if (otp != null && otp.trim().isNotEmpty) {
       payload['otp'] = otp.trim();
     }
-    await _request(
-      'POST',
-      '/api/accounts/signup/provider/',
-      body: payload,
-    );
+    await _request('POST', '/api/accounts/signup/provider/', body: payload);
   }
 
   Future<UserProfile> fetchProfile() async {
@@ -292,15 +317,15 @@ class ApiService {
     return UserProfile.fromJson(body);
   }
 
-  Future<void> updateProfile({required String fullName, required String email}) async {
+  Future<void> updateProfile({
+    required String fullName,
+    required String email,
+  }) async {
     await _request(
       'POST',
       '/api/accounts/me/update/',
       auth: true,
-      body: {
-        'full_name': fullName,
-        'email': email,
-      },
+      body: {'full_name': fullName, 'email': email},
     );
   }
 
@@ -337,7 +362,10 @@ class ApiService {
         .toList();
   }
 
-  Future<List<ProviderItem>> fetchProviders({required int serviceId, String? city}) async {
+  Future<List<ProviderItem>> fetchProviders({
+    required int serviceId,
+    String? city,
+  }) async {
     final query = <String, String>{};
     if (city != null && city.trim().isNotEmpty) {
       query['city'] = city.trim();
@@ -367,14 +395,39 @@ class ApiService {
     await TokenStore.saveCity(city);
   }
 
-  Future<List<ServiceItem>> fetchProviderServicesForBooking(int providerId) async {
+  Future<ReverseGeocodeResult> reverseGeocode({
+    required double lat,
+    required double lon,
+  }) async {
+    final body = await _request(
+      'GET',
+      '/api/accounts/geo/reverse/',
+      query: <String, String>{'lat': lat.toString(), 'lon': lon.toString()},
+    );
+    if (body is! Map<String, dynamic>) {
+      throw const ApiException('Invalid reverse geocode response');
+    }
+    final city = body['city']?.toString().trim() ?? '';
+    final displayName = body['display_name']?.toString().trim() ?? '';
+    if (_looksLikeHtml(city) || _looksLikeHtml(displayName)) {
+      throw const ApiException('Reverse geocode service returned invalid data');
+    }
+    return ReverseGeocodeResult(city: city, displayName: displayName);
+  }
+
+  Future<List<ServiceItem>> fetchProviderServicesForBooking(
+    int providerId,
+  ) async {
     final body = await _request(
       'GET',
       '/api/bookings/provider-services/$providerId/',
       auth: true,
     );
     if (body is! List<dynamic>) return <ServiceItem>[];
-    return body.whereType<Map<String, dynamic>>().map(ServiceItem.fromJson).toList();
+    return body
+        .whereType<Map<String, dynamic>>()
+        .map(ServiceItem.fromJson)
+        .toList();
   }
 
   Future<int> createBooking({
@@ -408,29 +461,44 @@ class ApiService {
   Future<List<BookingItem>> fetchCustomerBookings() async {
     final body = await _request('GET', '/api/bookings/my/', auth: true);
     if (body is! List<dynamic>) return <BookingItem>[];
-    return body.whereType<Map<String, dynamic>>().map(BookingItem.fromJson).toList();
+    return body
+        .whereType<Map<String, dynamic>>()
+        .map(BookingItem.fromJson)
+        .toList();
   }
 
-  Future<void> submitReview({required int bookingId, required int rating, required String comment}) async {
+  Future<void> submitReview({
+    required int bookingId,
+    required int rating,
+    required String comment,
+  }) async {
     await _request(
       'POST',
       '/api/bookings/review/$bookingId/',
       auth: true,
-      body: {
-        'rating': rating,
-        'comment': comment,
-      },
+      body: {'rating': rating, 'comment': comment},
     );
   }
 
   Future<List<AppNotification>> fetchNotifications() async {
-    final body = await _request('GET', '/api/accounts/notifications/', auth: true);
+    final body = await _request(
+      'GET',
+      '/api/accounts/notifications/',
+      auth: true,
+    );
     if (body is! List<dynamic>) return <AppNotification>[];
-    return body.whereType<Map<String, dynamic>>().map(AppNotification.fromJson).toList();
+    return body
+        .whereType<Map<String, dynamic>>()
+        .map(AppNotification.fromJson)
+        .toList();
   }
 
   Future<void> markNotificationRead(int notificationId) async {
-    await _request('POST', '/api/accounts/notifications/read/$notificationId/', auth: true);
+    await _request(
+      'POST',
+      '/api/accounts/notifications/read/$notificationId/',
+      auth: true,
+    );
   }
 
   Future<void> markAllNotificationsRead() async {
@@ -438,12 +506,22 @@ class ApiService {
   }
 
   Future<List<BookingItem>> fetchProviderDashboardBookings() async {
-    final body = await _request('GET', '/api/bookings/provider/dashboard/', auth: true);
+    final body = await _request(
+      'GET',
+      '/api/bookings/provider/dashboard/',
+      auth: true,
+    );
     if (body is! List<dynamic>) return <BookingItem>[];
-    return body.whereType<Map<String, dynamic>>().map(BookingItem.fromJson).toList();
+    return body
+        .whereType<Map<String, dynamic>>()
+        .map(BookingItem.fromJson)
+        .toList();
   }
 
-  Future<void> providerAction({required int bookingId, required String action}) async {
+  Future<void> providerAction({
+    required int bookingId,
+    required String action,
+  }) async {
     await _request(
       'POST',
       '/api/bookings/provider/action/$bookingId/',
@@ -452,7 +530,10 @@ class ApiService {
     );
   }
 
-  Future<void> providerUpdateStatus({required int bookingId, required String status}) async {
+  Future<void> providerUpdateStatus({
+    required int bookingId,
+    required String status,
+  }) async {
     await _request(
       'POST',
       '/api/bookings/provider/update-status/$bookingId/',
@@ -462,12 +543,19 @@ class ApiService {
   }
 
   Future<List<BasicService>> fetchProviderMyServices() async {
-    final body = await _request('GET', '/api/accounts/providers/me/services/', auth: true);
+    final body = await _request(
+      'GET',
+      '/api/accounts/providers/me/services/',
+      auth: true,
+    );
     if (body is! Map<String, dynamic>) return <BasicService>[];
     final raw = body['services'] as List<dynamic>? ?? <dynamic>[];
     return raw
         .whereType<Map<String, dynamic>>()
-        .map((row) => BasicService(id: row['id'] as int, name: row['name'].toString()))
+        .map(
+          (row) =>
+              BasicService(id: row['id'] as int, name: row['name'].toString()),
+        )
         .toList();
   }
 
@@ -481,13 +569,22 @@ class ApiService {
   }
 
   Future<List<ProviderServicePrice>> fetchProviderMyServicePrices() async {
-    final body = await _request('GET', '/api/accounts/providers/me/service-prices/', auth: true);
+    final body = await _request(
+      'GET',
+      '/api/accounts/providers/me/service-prices/',
+      auth: true,
+    );
     if (body is! Map<String, dynamic>) return <ProviderServicePrice>[];
     final prices = body['prices'] as List<dynamic>? ?? <dynamic>[];
-    return prices.whereType<Map<String, dynamic>>().map(ProviderServicePrice.fromJson).toList();
+    return prices
+        .whereType<Map<String, dynamic>>()
+        .map(ProviderServicePrice.fromJson)
+        .toList();
   }
 
-  Future<void> updateProviderMyServicePrices(List<Map<String, dynamic>> prices) async {
+  Future<void> updateProviderMyServicePrices(
+    List<Map<String, dynamic>> prices,
+  ) async {
     await _request(
       'POST',
       '/api/accounts/providers/me/service-prices/',
@@ -516,10 +613,16 @@ class ApiService {
   Future<List<BookingItem>> fetchAdminBookings() async {
     final body = await _request('GET', '/api/bookings/admin/all/', auth: true);
     if (body is! List<dynamic>) return <BookingItem>[];
-    return body.whereType<Map<String, dynamic>>().map(BookingItem.fromJson).toList();
+    return body
+        .whereType<Map<String, dynamic>>()
+        .map(BookingItem.fromJson)
+        .toList();
   }
 
-  Future<void> assignProvider({required int bookingId, required int providerId}) async {
+  Future<void> assignProvider({
+    required int bookingId,
+    required int providerId,
+  }) async {
     await _request(
       'POST',
       '/api/bookings/assign/$bookingId/',
@@ -529,20 +632,34 @@ class ApiService {
   }
 
   Future<List<AdminUser>> fetchAdminUsers() async {
-    final body = await _request('GET', '/api/accounts/admin/users/', auth: true);
+    final body = await _request(
+      'GET',
+      '/api/accounts/admin/users/',
+      auth: true,
+    );
     if (body is! List<dynamic>) return <AdminUser>[];
-    return body.whereType<Map<String, dynamic>>().map(AdminUser.fromJson).toList();
+    return body
+        .whereType<Map<String, dynamic>>()
+        .map(AdminUser.fromJson)
+        .toList();
   }
 
   Future<void> toggleAdminUser(int userId) async {
-    await _request('POST', '/api/accounts/admin/users/$userId/toggle/', auth: true);
+    await _request(
+      'POST',
+      '/api/accounts/admin/users/$userId/toggle/',
+      auth: true,
+    );
   }
 
   Future<void> deleteAdminUser(int userId) async {
     await _request('DELETE', '/api/accounts/admin/users/$userId/', auth: true);
   }
 
-  Future<void> updateAdminProviderServices({required int userId, required List<int> services}) async {
+  Future<void> updateAdminProviderServices({
+    required int userId,
+    required List<int> services,
+  }) async {
     await _request(
       'POST',
       '/api/accounts/admin/providers/$userId/services/',
@@ -551,7 +668,9 @@ class ApiService {
     );
   }
 
-  Future<List<ProviderServicePrice>> fetchAdminProviderServicePrices(int userId) async {
+  Future<List<ProviderServicePrice>> fetchAdminProviderServicePrices(
+    int userId,
+  ) async {
     final body = await _request(
       'GET',
       '/api/accounts/admin/providers/$userId/service-prices/',
@@ -559,7 +678,10 @@ class ApiService {
     );
     if (body is! Map<String, dynamic>) return <ProviderServicePrice>[];
     final prices = body['prices'] as List<dynamic>? ?? <dynamic>[];
-    return prices.whereType<Map<String, dynamic>>().map(ProviderServicePrice.fromJson).toList();
+    return prices
+        .whereType<Map<String, dynamic>>()
+        .map(ProviderServicePrice.fromJson)
+        .toList();
   }
 
   Future<void> updateAdminProviderServicePrices({
@@ -575,13 +697,27 @@ class ApiService {
   }
 
   Future<List<AdminCategory>> fetchAdminCategories() async {
-    final body = await _request('GET', '/api/services/admin/categories/', auth: true);
+    final body = await _request(
+      'GET',
+      '/api/services/admin/categories/',
+      auth: true,
+    );
     if (body is! List<dynamic>) return <AdminCategory>[];
-    return body.whereType<Map<String, dynamic>>().map(AdminCategory.fromJson).toList();
+    return body
+        .whereType<Map<String, dynamic>>()
+        .map(AdminCategory.fromJson)
+        .toList();
   }
 
-  Future<AdminCategory> createAdminCategory(Map<String, dynamic> payload) async {
-    final body = await _request('POST', '/api/services/admin/categories/', auth: true, body: payload);
+  Future<AdminCategory> createAdminCategory(
+    Map<String, dynamic> payload,
+  ) async {
+    final body = await _request(
+      'POST',
+      '/api/services/admin/categories/',
+      auth: true,
+      body: payload,
+    );
     if (body is! Map<String, dynamic>) {
       throw const ApiException('Invalid category response');
     }
@@ -589,7 +725,12 @@ class ApiService {
   }
 
   Future<void> updateAdminCategory(int id, Map<String, dynamic> payload) async {
-    await _request('PUT', '/api/services/admin/categories/$id/', auth: true, body: payload);
+    await _request(
+      'PUT',
+      '/api/services/admin/categories/$id/',
+      auth: true,
+      body: payload,
+    );
   }
 
   Future<void> deleteAdminCategory(int id) async {
@@ -597,13 +738,25 @@ class ApiService {
   }
 
   Future<List<AdminService>> fetchAdminServices() async {
-    final body = await _request('GET', '/api/services/admin/services/', auth: true);
+    final body = await _request(
+      'GET',
+      '/api/services/admin/services/',
+      auth: true,
+    );
     if (body is! List<dynamic>) return <AdminService>[];
-    return body.whereType<Map<String, dynamic>>().map(AdminService.fromJson).toList();
+    return body
+        .whereType<Map<String, dynamic>>()
+        .map(AdminService.fromJson)
+        .toList();
   }
 
   Future<AdminService> createAdminService(Map<String, dynamic> payload) async {
-    final body = await _request('POST', '/api/services/admin/services/', auth: true, body: payload);
+    final body = await _request(
+      'POST',
+      '/api/services/admin/services/',
+      auth: true,
+      body: payload,
+    );
     if (body is! Map<String, dynamic>) {
       throw const ApiException('Invalid service response');
     }
@@ -611,7 +764,12 @@ class ApiService {
   }
 
   Future<void> updateAdminService(int id, Map<String, dynamic> payload) async {
-    await _request('PUT', '/api/services/admin/services/$id/', auth: true, body: payload);
+    await _request(
+      'PUT',
+      '/api/services/admin/services/$id/',
+      auth: true,
+      body: payload,
+    );
   }
 
   Future<void> deleteAdminService(int id) async {
@@ -619,8 +777,15 @@ class ApiService {
   }
 
   Future<List<AdminReview>> fetchAdminReviews() async {
-    final body = await _request('GET', '/api/bookings/admin/reviews/', auth: true);
+    final body = await _request(
+      'GET',
+      '/api/bookings/admin/reviews/',
+      auth: true,
+    );
     if (body is! List<dynamic>) return <AdminReview>[];
-    return body.whereType<Map<String, dynamic>>().map(AdminReview.fromJson).toList();
+    return body
+        .whereType<Map<String, dynamic>>()
+        .map(AdminReview.fromJson)
+        .toList();
   }
 }
