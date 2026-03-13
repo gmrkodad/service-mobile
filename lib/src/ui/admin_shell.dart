@@ -31,11 +31,23 @@ class _AdminShellState extends State<AdminShell> {
   @override
   Widget build(BuildContext context) {
     final tabs = <Widget>[
-      AdminDashboardTab(api: widget.api, onSessionExpired: widget.onSessionExpired),
-      AdminBookingsTab(api: widget.api, onSessionExpired: widget.onSessionExpired),
+      AdminDashboardTab(
+        api: widget.api,
+        onSessionExpired: widget.onSessionExpired,
+      ),
+      AdminBookingsTab(
+        api: widget.api,
+        onSessionExpired: widget.onSessionExpired,
+      ),
       AdminUsersTab(api: widget.api, onSessionExpired: widget.onSessionExpired),
-      AdminServicesTab(api: widget.api, onSessionExpired: widget.onSessionExpired),
-      AdminReviewsTab(api: widget.api, onSessionExpired: widget.onSessionExpired),
+      AdminServicesTab(
+        api: widget.api,
+        onSessionExpired: widget.onSessionExpired,
+      ),
+      AdminReviewsTab(
+        api: widget.api,
+        onSessionExpired: widget.onSessionExpired,
+      ),
       AccountTab(
         api: widget.api,
         profile: widget.profile,
@@ -46,7 +58,10 @@ class _AdminShellState extends State<AdminShell> {
     ];
 
     return Scaffold(
-      body: SafeArea(child: tabs[_index]),
+      body: ColoredBox(
+        color: UiTone.shellBackground,
+        child: SafeArea(child: tabs[_index]),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (value) {
@@ -55,12 +70,36 @@ class _AdminShellState extends State<AdminShell> {
           });
         },
         destinations: const <Widget>[
-          NavigationDestination(icon: Icon(Icons.space_dashboard_outlined), selectedIcon: Icon(Icons.space_dashboard), label: 'Overview'),
-          NavigationDestination(icon: Icon(Icons.assignment_outlined), selectedIcon: Icon(Icons.assignment), label: 'Bookings'),
-          NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'Users'),
-          NavigationDestination(icon: Icon(Icons.design_services_outlined), selectedIcon: Icon(Icons.design_services), label: 'Services'),
-          NavigationDestination(icon: Icon(Icons.reviews_outlined), selectedIcon: Icon(Icons.reviews), label: 'Reviews'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Account'),
+          NavigationDestination(
+            icon: Icon(Icons.space_dashboard_outlined),
+            selectedIcon: Icon(Icons.space_dashboard),
+            label: 'Overview',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.assignment_outlined),
+            selectedIcon: Icon(Icons.assignment),
+            label: 'Bookings',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.people_outline),
+            selectedIcon: Icon(Icons.people),
+            label: 'Users',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.design_services_outlined),
+            selectedIcon: Icon(Icons.design_services),
+            label: 'Services',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.reviews_outlined),
+            selectedIcon: Icon(Icons.reviews),
+            label: 'Reviews',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Account',
+          ),
         ],
       ),
     );
@@ -132,40 +171,125 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
     if (_loading) return loadingView();
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          const Text('Admin Overview', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: <Widget>[
-              _stat('Bookings', _bookings),
-              _stat('Users', _users),
-              _stat('Services', _services),
-              _stat('Reviews', _reviews),
-            ],
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: <Widget>[
+          SliverToBoxAdapter(
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: <Color>[Color(0xFF1F3C8E), Color(0xFF2E6BD8)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const Text(
+                    'Admin Command Center',
+                    style: TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Live health view for bookings, users, services and reviews',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: sectionTitle(
+              'Platform Snapshot',
+              subtitle: 'Monitor demand and quality at a glance',
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisExtent: 126,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+              ),
+              delegate: SliverChildListDelegate(<Widget>[
+                _stat(
+                  'Bookings',
+                  _bookings,
+                  Icons.assignment_outlined,
+                  const Color(0xFF2A62D8),
+                ),
+                _stat(
+                  'Users',
+                  _users,
+                  Icons.people_alt_outlined,
+                  const Color(0xFF0A8D77),
+                ),
+                _stat(
+                  'Services',
+                  _services,
+                  Icons.design_services_outlined,
+                  const Color(0xFF7A54EA),
+                ),
+                _stat(
+                  'Reviews',
+                  _reviews,
+                  Icons.reviews_outlined,
+                  const Color(0xFFF08A24),
+                ),
+              ]),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _stat(String label, int value) {
+  Widget _stat(String label, int value, IconData icon, Color iconColor) {
     return Container(
-      width: 150,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.indigo.shade50,
-        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: UiTone.surfaceBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(label, style: const TextStyle(fontSize: 13, color: Colors.black54)),
-          const SizedBox(height: 4),
-          Text(value.toString(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, color: iconColor, size: 18),
+          ),
+          const SizedBox(height: 9),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              color: UiTone.softText,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Text(
+            value.toString(),
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+          ),
         ],
       ),
     );
@@ -227,7 +351,9 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
   }
 
   Future<void> _assignProvider(BookingItem booking) async {
-    int? selectedProvider = _providers.isNotEmpty ? _providers.first.userId : null;
+    int? selectedProvider = _providers.isNotEmpty
+        ? _providers.first.userId
+        : null;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -271,7 +397,10 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
     if (confirmed != true || selectedProvider == null) return;
 
     try {
-      await widget.api.assignProvider(bookingId: booking.id, providerId: selectedProvider!);
+      await widget.api.assignProvider(
+        bookingId: booking.id,
+        providerId: selectedProvider!,
+      );
       await _load();
     } catch (error) {
       if (error is ApiException && error.statusCode == 401) {
@@ -285,57 +414,90 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return loadingView();
-    return Scaffold(
-      appBar: AppBar(title: const Text('Admin Bookings')),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: _bookings.isEmpty
-            ? ListView(children: <Widget>[emptyView('No bookings found')])
-            : ListView.builder(
-                padding: const EdgeInsets.all(12),
-                itemCount: _bookings.length,
-                itemBuilder: (context, index) {
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: <Widget>[
+          SliverToBoxAdapter(
+            child: sectionTitle(
+              'Bookings Control',
+              subtitle: 'Assign providers and track status transitions',
+            ),
+          ),
+          if (_bookings.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: emptyView('No bookings found'),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate((context, index) {
                   final booking = _bookings[index];
-                  return Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Row(
-                            children: <Widget>[
-                              Expanded(
-                                child: Text(
-                                  '#${booking.id} ${booking.serviceLabel}',
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Row(
+                              children: <Widget>[
+                                Expanded(
+                                  child: Text(
+                                    '#${booking.id} ${booking.serviceLabel}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
                                 ),
+                                Chip(
+                                  label: Text(prettyStatus(booking.status)),
+                                  backgroundColor: statusColor(
+                                    booking.status,
+                                  ).withValues(alpha: 0.15),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Customer: ${booking.customerUsername}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
                               ),
-                              Chip(
-                                label: Text(prettyStatus(booking.status)),
-                                backgroundColor: statusColor(booking.status).withValues(alpha: 0.15),
+                            ),
+                            Text(
+                              'Provider: ${booking.providerUsername.isEmpty ? '-' : booking.providerUsername}',
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Date: ${booking.scheduledDate} | ${prettyStatus(booking.timeSlot)}',
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              booking.address,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (booking.providerUsername.isEmpty) ...<Widget>[
+                              const SizedBox(height: 10),
+                              FilledButton.tonal(
+                                onPressed: () => _assignProvider(booking),
+                                child: const Text('Assign Provider'),
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text('Customer: ${booking.customerUsername}'),
-                          Text('Provider: ${booking.providerUsername.isEmpty ? '-' : booking.providerUsername}'),
-                          const SizedBox(height: 4),
-                          Text('Date: ${booking.scheduledDate}  •  ${prettyStatus(booking.timeSlot)}'),
-                          const SizedBox(height: 6),
-                          Text(booking.address),
-                          if (booking.providerUsername.isEmpty) ...<Widget>[
-                            const SizedBox(height: 10),
-                            FilledButton.tonal(
-                              onPressed: () => _assignProvider(booking),
-                              child: const Text('Assign Provider'),
-                            ),
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   );
-                },
+                }, childCount: _bookings.length),
               ),
+            ),
+        ],
       ),
     );
   }
@@ -486,7 +648,10 @@ class _AdminUsersTabState extends State<AdminUsersTab> {
     if (confirmed != true) return;
 
     try {
-      await widget.api.updateAdminProviderServices(userId: user.id, services: selected.toList());
+      await widget.api.updateAdminProviderServices(
+        userId: user.id,
+        services: selected.toList(),
+      );
       await _load();
     } catch (error) {
       if (error is ApiException && error.statusCode == 401) {
@@ -502,7 +667,8 @@ class _AdminUsersTabState extends State<AdminUsersTab> {
       final prices = await widget.api.fetchAdminProviderServicePrices(user.id);
       if (!mounted) return;
       final controllers = <int, TextEditingController>{
-        for (final p in prices) p.serviceId: TextEditingController(text: p.price.toStringAsFixed(0)),
+        for (final p in prices)
+          p.serviceId: TextEditingController(text: p.price.toStringAsFixed(0)),
       };
 
       final confirmed = await showDialog<bool>(
@@ -519,7 +685,9 @@ class _AdminUsersTabState extends State<AdminUsersTab> {
                     padding: const EdgeInsets.only(bottom: 10),
                     child: TextField(
                       controller: controllers[p.serviceId],
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: InputDecoration(
                         labelText: p.serviceName,
                         helperText: 'Base: ${p.basePrice.toStringAsFixed(0)}',
@@ -546,13 +714,18 @@ class _AdminUsersTabState extends State<AdminUsersTab> {
       if (confirmed == true) {
         final payload = <Map<String, dynamic>>[];
         for (final p in prices) {
-          final value = double.tryParse(controllers[p.serviceId]?.text.trim() ?? '');
+          final value = double.tryParse(
+            controllers[p.serviceId]?.text.trim() ?? '',
+          );
           if (value == null || value <= 0) {
             throw const ApiException('All prices must be greater than 0');
           }
           payload.add({'service_id': p.serviceId, 'price': value});
         }
-        await widget.api.updateAdminProviderServicePrices(userId: user.id, prices: payload);
+        await widget.api.updateAdminProviderServicePrices(
+          userId: user.id,
+          prices: payload,
+        );
         await _load();
       }
 
@@ -579,85 +752,132 @@ class _AdminUsersTabState extends State<AdminUsersTab> {
           u.role.toLowerCase().contains(q);
     }).toList();
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Admin Users')),
-      body: Column(
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                hintText: 'Search users',
-                prefixIcon: Icon(Icons.search),
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: <Widget>[
+          SliverToBoxAdapter(
+            child: sectionTitle(
+              'Users Directory',
+              subtitle: 'Search, activate, and manage provider capabilities',
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  hintText: 'Search users',
+                  prefixIcon: Icon(Icons.search),
+                ),
               ),
             ),
           ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _load,
-              child: filtered.isEmpty
-                  ? ListView(children: <Widget>[emptyView('No users found')])
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(12),
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final user = filtered[index];
-                        return Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+          if (filtered.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: emptyView('No users found'),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final user = filtered[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Row(
                               children: <Widget>[
-                                Row(
-                                  children: <Widget>[
-                                    Expanded(
-                                      child: Text(
+                                CircleAvatar(
+                                  backgroundColor: const Color(0xFFE3EBFF),
+                                  foregroundColor: const Color(0xFF1E4EA8),
+                                  child: Text(
+                                    user.username.isEmpty
+                                        ? '?'
+                                        : user.username
+                                              .substring(0, 1)
+                                              .toUpperCase(),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: <Widget>[
+                                      Text(
                                         user.username,
-                                        style: const TextStyle(fontWeight: FontWeight.bold),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                        ),
                                       ),
-                                    ),
-                                    Chip(label: Text(user.role)),
-                                  ],
+                                      Text(
+                                        user.fullName.isEmpty
+                                            ? '-'
+                                            : user.fullName,
+                                        style: const TextStyle(
+                                          color: UiTone.softText,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                Text(user.fullName.isEmpty ? '-' : user.fullName),
-                                Text(user.email.isEmpty ? '-' : user.email),
-                                Text('Phone: ${user.phone.isEmpty ? '-' : user.phone}'),
-                                Text('City: ${user.city.isEmpty ? '-' : user.city}'),
-                                const SizedBox(height: 8),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: <Widget>[
-                                    FilledButton.tonal(
-                                      onPressed: () => _toggleUser(user),
-                                      child: Text(user.isActive ? 'Deactivate' : 'Activate'),
-                                    ),
-                                    OutlinedButton(
-                                      onPressed: () => _deleteUser(user),
-                                      child: const Text('Delete'),
-                                    ),
-                                    if (user.role == 'PROVIDER')
-                                      OutlinedButton(
-                                        onPressed: () => _editProviderServices(user),
-                                        child: const Text('Edit Services'),
-                                      ),
-                                    if (user.role == 'PROVIDER')
-                                      OutlinedButton(
-                                        onPressed: () => _editProviderPrices(user),
-                                        child: const Text('Edit Prices'),
-                                      ),
-                                  ],
-                                ),
+                                Chip(label: Text(user.role)),
                               ],
                             ),
-                          ),
-                        );
-                      },
+                            const SizedBox(height: 8),
+                            Text(user.email.isEmpty ? '-' : user.email),
+                            Text(
+                              'Phone: ${user.phone.isEmpty ? '-' : user.phone}',
+                            ),
+                            Text(
+                              'City: ${user.city.isEmpty ? '-' : user.city}',
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: <Widget>[
+                                FilledButton.tonal(
+                                  onPressed: () => _toggleUser(user),
+                                  child: Text(
+                                    user.isActive ? 'Deactivate' : 'Activate',
+                                  ),
+                                ),
+                                OutlinedButton(
+                                  onPressed: () => _deleteUser(user),
+                                  child: const Text('Delete'),
+                                ),
+                                if (user.role == 'PROVIDER')
+                                  OutlinedButton(
+                                    onPressed: () =>
+                                        _editProviderServices(user),
+                                    child: const Text('Edit Services'),
+                                  ),
+                                if (user.role == 'PROVIDER')
+                                  OutlinedButton(
+                                    onPressed: () => _editProviderPrices(user),
+                                    child: const Text('Edit Prices'),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
+                  );
+                }, childCount: filtered.length),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -734,9 +954,20 @@ class _AdminServicesTabState extends State<AdminServicesTab> {
               content: SingleChildScrollView(
                 child: Column(
                   children: <Widget>[
-                    TextField(controller: name, decoration: const InputDecoration(labelText: 'Name')),
-                    TextField(controller: description, decoration: const InputDecoration(labelText: 'Description')),
-                    TextField(controller: imageUrl, decoration: const InputDecoration(labelText: 'Image URL')),
+                    TextField(
+                      controller: name,
+                      decoration: const InputDecoration(labelText: 'Name'),
+                    ),
+                    TextField(
+                      controller: description,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                      ),
+                    ),
+                    TextField(
+                      controller: imageUrl,
+                      decoration: const InputDecoration(labelText: 'Image URL'),
+                    ),
                     SwitchListTile(
                       value: isActive,
                       onChanged: (value) {
@@ -750,8 +981,14 @@ class _AdminServicesTabState extends State<AdminServicesTab> {
                 ),
               ),
               actions: <Widget>[
-                TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-                FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Create')),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Create'),
+                ),
               ],
             );
           },
@@ -799,18 +1036,38 @@ class _AdminServicesTabState extends State<AdminServicesTab> {
               content: SingleChildScrollView(
                 child: Column(
                   children: <Widget>[
-                    TextField(controller: name, decoration: const InputDecoration(labelText: 'Name')),
-                    TextField(controller: description, decoration: const InputDecoration(labelText: 'Description')),
-                    TextField(controller: imageUrl, decoration: const InputDecoration(labelText: 'Image URL')),
+                    TextField(
+                      controller: name,
+                      decoration: const InputDecoration(labelText: 'Name'),
+                    ),
+                    TextField(
+                      controller: description,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                      ),
+                    ),
+                    TextField(
+                      controller: imageUrl,
+                      decoration: const InputDecoration(labelText: 'Image URL'),
+                    ),
                     TextField(
                       controller: price,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Base Price'),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Base Price',
+                      ),
                     ),
                     DropdownButtonFormField<int>(
                       initialValue: category,
                       items: _categories
-                          .map((c) => DropdownMenuItem<int>(value: c.id, child: Text(c.name)))
+                          .map(
+                            (c) => DropdownMenuItem<int>(
+                              value: c.id,
+                              child: Text(c.name),
+                            ),
+                          )
                           .toList(),
                       onChanged: (value) {
                         setStateDialog(() {
@@ -832,8 +1089,14 @@ class _AdminServicesTabState extends State<AdminServicesTab> {
                 ),
               ),
               actions: <Widget>[
-                TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-                FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Create')),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Create'),
+                ),
               ],
             );
           },
@@ -869,114 +1132,205 @@ class _AdminServicesTabState extends State<AdminServicesTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return loadingView();
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Admin Services'),
-        actions: <Widget>[
-          IconButton(onPressed: _createCategory, icon: const Icon(Icons.category_outlined), tooltip: 'New category'),
-          IconButton(onPressed: _createService, icon: const Icon(Icons.add_business_outlined), tooltip: 'New service'),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.all(12),
-          children: <Widget>[
-            const Text('Categories', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            ..._categories.map((category) {
-              return Card(
-                child: ListTile(
-                  title: Text(category.name),
-                  subtitle: Text(category.description.isEmpty ? 'No description' : category.description),
-                  trailing: Switch(
-                    value: category.isActive,
-                    onChanged: (value) async {
-                      try {
-                        await widget.api.updateAdminCategory(category.id, {'is_active': value});
-                        await _load();
-                      } catch (error) {
-                        if (error is ApiException && error.statusCode == 401) {
-                          widget.onSessionExpired();
-                          return;
-                        }
-                        if (!context.mounted) return;
-                        showApiError(context, error);
-                      }
-                    },
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: <Widget>[
+          SliverToBoxAdapter(
+            child: sectionTitle(
+              'Services Studio',
+              subtitle: 'Create and maintain your catalog',
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  IconButton(
+                    onPressed: _createCategory,
+                    icon: const Icon(Icons.category_outlined),
+                    tooltip: 'New category',
                   ),
-                ),
-              );
-            }),
-            const SizedBox(height: 12),
-            const Text('Services', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            ..._services.map((service) {
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
+                  IconButton(
+                    onPressed: _createService,
+                    icon: const Icon(Icons.add_business_outlined),
+                    tooltip: 'New service',
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: sectionTitle(
+              'Categories',
+              subtitle: 'Toggle visibility and review category images',
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final category = _categories[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Card(
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+                      leading: imageOrPlaceholder(
+                        category.imageUrl,
+                        width: 54,
+                        height: 54,
+                        fallbackIcon: Icons.category_outlined,
+                      ),
+                      title: Text(
+                        category.name,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: Text(
+                        category.description.isEmpty
+                            ? 'No description'
+                            : category.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: Switch(
+                        value: category.isActive,
+                        onChanged: (value) async {
+                          try {
+                            await widget.api.updateAdminCategory(category.id, {
+                              'is_active': value,
+                            });
+                            await _load();
+                          } catch (error) {
+                            if (error is ApiException &&
+                                error.statusCode == 401) {
+                              widget.onSessionExpired();
+                              return;
+                            }
+                            if (!context.mounted) return;
+                            showApiError(context, error);
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              }, childCount: _categories.length),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: sectionTitle(
+              'Services',
+              subtitle: 'Edit service states and pricing',
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final service = _services[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
+                          imageOrPlaceholder(
+                            service.imageUrl,
+                            width: 64,
+                            height: 64,
+                            fallbackIcon: Icons.room_service_outlined,
+                          ),
+                          const SizedBox(width: 10),
                           Expanded(
-                            child: Text(service.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          ),
-                          Switch(
-                            value: service.isActive,
-                            onChanged: (value) async {
-                              try {
-                                await widget.api.updateAdminService(service.id, {'is_active': value});
-                                await _load();
-                              } catch (error) {
-                                if (error is ApiException && error.statusCode == 401) {
-                                  widget.onSessionExpired();
-                                  return;
-                                }
-                                if (!context.mounted) return;
-                                showApiError(context, error);
-                              }
-                            },
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: Text(
+                                        service.name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                    Switch(
+                                      value: service.isActive,
+                                      onChanged: (value) async {
+                                        try {
+                                          await widget.api.updateAdminService(
+                                            service.id,
+                                            {'is_active': value},
+                                          );
+                                          await _load();
+                                        } catch (error) {
+                                          if (error is ApiException &&
+                                              error.statusCode == 401) {
+                                            widget.onSessionExpired();
+                                            return;
+                                          }
+                                          if (!context.mounted) return;
+                                          showApiError(context, error);
+                                        }
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                Text(
+                                  service.categoryName,
+                                  style: const TextStyle(
+                                    color: UiTone.softText,
+                                  ),
+                                ),
+                                Text(
+                                  'Base: INR ${service.basePrice.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                OutlinedButton(
+                                  onPressed: () async {
+                                    final confirm = await confirmDialog(
+                                      context,
+                                      title: 'Delete Service',
+                                      message: 'Delete ${service.name}?',
+                                      confirmLabel: 'Delete',
+                                    );
+                                    if (!confirm) return;
+                                    try {
+                                      await widget.api.deleteAdminService(
+                                        service.id,
+                                      );
+                                      await _load();
+                                    } catch (error) {
+                                      if (error is ApiException &&
+                                          error.statusCode == 401) {
+                                        widget.onSessionExpired();
+                                        return;
+                                      }
+                                      if (!context.mounted) return;
+                                      showApiError(context, error);
+                                    }
+                                  },
+                                  child: const Text('Delete'),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
-                      Text(service.categoryName),
-                      Text('Base: ${service.basePrice.toStringAsFixed(0)}'),
-                      Row(
-                        children: <Widget>[
-                          TextButton(
-                            onPressed: () async {
-                              final confirm = await confirmDialog(
-                                context,
-                                title: 'Delete Service',
-                                message: 'Delete ${service.name}?',
-                                confirmLabel: 'Delete',
-                              );
-                              if (!confirm) return;
-                              try {
-                                await widget.api.deleteAdminService(service.id);
-                                await _load();
-                              } catch (error) {
-                                if (error is ApiException && error.statusCode == 401) {
-                                  widget.onSessionExpired();
-                                  return;
-                                }
-                                if (!context.mounted) return;
-                                showApiError(context, error);
-                              }
-                            },
-                            child: const Text('Delete'),
-                          ),
-                        ],
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              );
-            }),
-          ],
-        ),
+                );
+              }, childCount: _services.length),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1035,58 +1389,133 @@ class _AdminReviewsTabState extends State<AdminReviewsTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return loadingView();
-    final filtered = _rating.isEmpty ? _reviews : _reviews.where((r) => r.rating.toString() == _rating).toList();
+    final filtered = _rating.isEmpty
+        ? _reviews
+        : _reviews.where((r) => r.rating.toString() == _rating).toList();
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Admin Reviews')),
-      body: Column(
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: DropdownButtonFormField<String>(
-              initialValue: _rating,
-              items: const <DropdownMenuItem<String>>[
-                DropdownMenuItem(value: '', child: Text('All ratings')),
-                DropdownMenuItem(value: '1', child: Text('1 star')),
-                DropdownMenuItem(value: '2', child: Text('2 stars')),
-                DropdownMenuItem(value: '3', child: Text('3 stars')),
-                DropdownMenuItem(value: '4', child: Text('4 stars')),
-                DropdownMenuItem(value: '5', child: Text('5 stars')),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _rating = value ?? '';
-                });
-              },
-              decoration: const InputDecoration(labelText: 'Filter by rating'),
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: <Widget>[
+          SliverToBoxAdapter(
+            child: sectionTitle(
+              'Reviews Monitor',
+              subtitle: 'Filter by rating and inspect provider feedback',
             ),
           ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _load,
-              child: filtered.isEmpty
-                  ? ListView(children: <Widget>[emptyView('No reviews found')])
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(12),
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final review = filtered[index];
-                        return Card(
-                          child: ListTile(
-                            title: Text('${review.serviceName} • ${review.rating}/5'),
-                            subtitle: Text(
-                              'Booking #${review.bookingId}\n'
-                              'Provider: ${review.providerUsername.isEmpty ? '-' : review.providerUsername}\n'
-                              'Author: ${review.authorUsername}\n'
-                              '${review.comment}',
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: DropdownButtonFormField<String>(
+                initialValue: _rating,
+                items: const <DropdownMenuItem<String>>[
+                  DropdownMenuItem(value: '', child: Text('All ratings')),
+                  DropdownMenuItem(value: '1', child: Text('1 star')),
+                  DropdownMenuItem(value: '2', child: Text('2 stars')),
+                  DropdownMenuItem(value: '3', child: Text('3 stars')),
+                  DropdownMenuItem(value: '4', child: Text('4 stars')),
+                  DropdownMenuItem(value: '5', child: Text('5 stars')),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _rating = value ?? '';
+                  });
+                },
+                decoration: const InputDecoration(
+                  labelText: 'Filter by rating',
+                  prefixIcon: Icon(Icons.filter_alt_outlined),
+                ),
+              ),
+            ),
+          ),
+          if (filtered.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: emptyView('No reviews found'),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final review = filtered[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Row(
+                              children: <Widget>[
+                                Expanded(
+                                  child: Text(
+                                    review.serviceName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFF4E0),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: <Widget>[
+                                      const Icon(
+                                        Icons.star_rounded,
+                                        size: 15,
+                                        color: Color(0xFFF08A24),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${review.rating}/5',
+                                        style: const TextStyle(
+                                          color: Color(0xFFB45B00),
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                            isThreeLine: true,
-                          ),
-                        );
-                      },
+                            const SizedBox(height: 8),
+                            Text(
+                              'Booking #${review.bookingId} | Author: ${review.authorUsername}',
+                              style: const TextStyle(
+                                color: UiTone.softText,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Provider: ${review.providerUsername.isEmpty ? '-' : review.providerUsername}',
+                              style: const TextStyle(color: UiTone.softText),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              review.comment.trim().isEmpty
+                                  ? 'No comment provided'
+                                  : review.comment,
+                              style: const TextStyle(height: 1.3),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
+                  );
+                }, childCount: filtered.length),
+              ),
             ),
-          ),
         ],
       ),
     );

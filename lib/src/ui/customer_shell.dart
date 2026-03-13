@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
-
 import '../api.dart';
 import '../models.dart';
 import '../session.dart';
@@ -108,8 +106,10 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
   final _cityController = TextEditingController();
 
   bool _loading = true;
-  bool _locatingCity = false;
   List<ServiceCategory> _categories = <ServiceCategory>[];
+  String _searchQuery = '';
+  List<ServiceCategory> _filteredCategories = <ServiceCategory>[];
+  List<_HomeSpotlight> _spotlight = <_HomeSpotlight>[];
 
   bool _looksLikeHtml(String value) {
     final lower = value.toLowerCase();
@@ -163,6 +163,7 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
       if (!mounted) return;
       setState(() {
         _categories = categories;
+        _rebuildCollections();
       });
     } catch (error) {
       if (error is ApiException && error.statusCode == 401) {
@@ -217,67 +218,6 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
     }
   }
 
-  Future<void> _useDeviceLocation() async {
-    setState(() {
-      _locatingCity = true;
-    });
-    try {
-      final enabled = await Geolocator.isLocationServiceEnabled();
-      if (!enabled) {
-        throw const ApiException('Enable location in emulator settings first');
-      }
-
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        throw const ApiException('Location permission denied');
-      }
-
-      var position = await Geolocator.getLastKnownPosition();
-      position ??= await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 15),
-        ),
-      );
-
-      final geocode = await widget.api.reverseGeocode(
-        lat: position.latitude,
-        lon: position.longitude,
-      );
-
-      var city = _normalizeCity(geocode.city);
-      if (city.isEmpty && geocode.displayName.isNotEmpty) {
-        city = _normalizeCity(geocode.displayName.split(',').first);
-      }
-      if (city.isEmpty) {
-        throw const ApiException(
-          'Could not determine a valid city from coordinates',
-        );
-      }
-
-      _cityController.text = city;
-      await _saveCityValue(city, showMessage: false);
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Location detected: $city')));
-      await _loadCategories();
-    } catch (error) {
-      if (!mounted) return;
-      showApiError(context, error);
-    } finally {
-      if (mounted) {
-        setState(() {
-          _locatingCity = false;
-        });
-      }
-    }
-  }
-
   Future<void> _openCategory(ServiceCategory category) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -289,6 +229,24 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
         ),
       ),
     );
+  }
+
+  void _rebuildCollections([String? query]) {
+    final normalizedQuery = (query ?? _searchController.text)
+        .trim()
+        .toLowerCase();
+    _searchQuery = normalizedQuery;
+    _filteredCategories = _categories
+        .where((category) {
+          if (category.name.toLowerCase().contains(normalizedQuery)) {
+            return true;
+          }
+          return category.services.any(
+            (svc) => svc.name.toLowerCase().contains(normalizedQuery),
+          );
+        })
+        .toList(growable: false);
+    _spotlight = _spotlightsFor(_filteredCategories);
   }
 
   List<_HomeSpotlight> _spotlightsFor(List<ServiceCategory> categories) {
@@ -334,6 +292,10 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
     BorderRadius? borderRadius,
     IconData fallbackIcon = Icons.handyman_outlined,
   }) {
+    final cacheWidth = width.isFinite && width > 0 ? (width * 2).round() : null;
+    final cacheHeight = height.isFinite && height > 0
+        ? (height * 2).round()
+        : null;
     final fallback = Container(
       height: height,
       width: width,
@@ -349,6 +311,9 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
             height: height,
             width: width,
             fit: BoxFit.cover,
+            cacheWidth: cacheWidth,
+            cacheHeight: cacheHeight,
+            filterQuality: FilterQuality.low,
             errorBuilder: (context, error, stackTrace) => fallback,
             loadingBuilder: (context, child, loadingProgress) {
               if (loadingProgress == null) return child;
@@ -369,9 +334,10 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[Color(0xFF163450), Color(0xFF2A6D92)],
+          colors: <Color>[Color(0xFFFFF7ED), Color(0xFFF5E4CD)],
         ),
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE3D3BC)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -379,34 +345,40 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
           Row(
             children: <Widget>[
               Container(
-                width: 36,
-                height: 36,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(10),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(Icons.flash_on_rounded, color: Colors.white),
+                child: const Icon(
+                  Icons.home_repair_service_rounded,
+                  color: Color(0xFF1F232B),
+                ),
               ),
               const SizedBox(width: 10),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Home Services, Delivered Fast',
+                  city.isEmpty ? 'Home Services' : city,
                   style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF191B1F),
+                    fontSize: city.isEmpty ? 19 : 17,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
+              const Icon(Icons.search_rounded, color: Color(0xFF282C33)),
+              const SizedBox(width: 14),
+              const Icon(Icons.share_outlined, color: Color(0xFF282C33)),
             ],
           ),
           const SizedBox(height: 16),
           Text(
             city.isEmpty
-                ? 'Set your city to discover nearby professionals.'
-                : 'Serving $city right now.',
+                ? 'Discover polished at-home services and book in minutes.'
+                : 'Serving $city right now with curated, top-rated professionals.',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.9),
+              color: const Color(0xFF44474E),
               fontSize: 13,
               height: 1.3,
             ),
@@ -416,9 +388,9 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
             spacing: 8,
             runSpacing: 8,
             children: <Widget>[
-              _heroTag(Icons.verified_user_outlined, 'Verified pros'),
-              _heroTag(Icons.timer_outlined, 'Quick slots'),
-              _heroTag(Icons.workspace_premium_outlined, 'Top rated'),
+              _heroTag(Icons.check_circle_outline, 'Experienced professionals'),
+              _heroTag(Icons.sell_outlined, 'Affordable prices'),
+              _heroTag(Icons.flash_on_outlined, 'Mess-free service'),
             ],
           ),
         ],
@@ -430,76 +402,20 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.18),
+        color: Colors.white.withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, size: 14, color: Colors.white),
+          Icon(icon, size: 14, color: const Color(0xFF23262B)),
           const SizedBox(width: 6),
-          Text(text, style: const TextStyle(color: Colors.white, fontSize: 12)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLocationAndSearchCard() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE1E8EF)),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(
-            color: Color(0x0A10223D),
-            blurRadius: 18,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: TextField(
-                  controller: _cityController,
-                  textInputAction: TextInputAction.done,
-                  decoration: const InputDecoration(
-                    labelText: 'Service city',
-                    prefixIcon: Icon(Icons.location_city_outlined),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton.filledTonal(
-                tooltip: 'Use emulator location',
-                onPressed: _locatingCity ? null : _useDeviceLocation,
-                icon: _locatingCity
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.my_location_rounded),
-              ),
-              const SizedBox(width: 8),
-              FilledButton(
-                onPressed: _locatingCity ? null : _saveCity,
-                child: const Text('Update'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _searchController,
-            onChanged: (_) => setState(() {}),
-            textInputAction: TextInputAction.search,
-            decoration: const InputDecoration(
-              hintText: 'Search services or categories',
-              prefixIcon: Icon(Icons.search),
+          Text(
+            text,
+            style: const TextStyle(
+              color: Color(0xFF23262B),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -507,9 +423,84 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
     );
   }
 
+  Widget _buildLocationAndSearchCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE4E7EE)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(Icons.place_outlined, color: Color(0xFF3E434C)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _normalizeCity(_cityController.text).isEmpty
+                      ? 'Set your service city'
+                      : _normalizeCity(_cityController.text),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              TextButton(onPressed: _saveCity, child: const Text('Update')),
+            ],
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _searchController,
+            onChanged: (value) {
+              setState(() {
+                _rebuildCollections(value);
+              });
+            },
+            textInputAction: TextInputAction.search,
+            decoration: const InputDecoration(
+              hintText: 'Search for "Waxing" or "Bathroom cleaning"',
+              prefixIcon: Icon(Icons.search),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: <Widget>[
+                _smallFilter('Instant slots'),
+                _smallFilter('4.5+ rated'),
+                _smallFilter('Top offers'),
+                _smallFilter('At-home'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _smallFilter(String text) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F6FA),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
   Widget _buildTopCategories(List<ServiceCategory> categories) {
     return SizedBox(
-      height: 108,
+      height: 124,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: categories.length > 8 ? 8 : categories.length,
@@ -520,32 +511,31 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
             borderRadius: BorderRadius.circular(16),
             onTap: () => _openCategory(category),
             child: Container(
-              width: 120,
-              padding: const EdgeInsets.all(10),
+              width: 92,
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFFF2F6FA),
-                borderRadius: BorderRadius.circular(16),
+                color: const Color(0xFFF7F7F8),
+                borderRadius: BorderRadius.circular(18),
               ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.design_services_outlined, size: 18),
+                  _buildImage(
+                    category.imageUrl,
+                    height: 58,
+                    width: 58,
+                    borderRadius: BorderRadius.circular(14),
+                    fallbackIcon: Icons.miscellaneous_services_outlined,
                   ),
-                  const Spacer(),
+                  const SizedBox(height: 10),
                   Text(
                     category.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontWeight: FontWeight.w700,
-                      fontSize: 13,
+                      fontSize: 12.2,
+                      height: 1.2,
                     ),
                   ),
                 ],
@@ -558,69 +548,107 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
   }
 
   Widget _buildQuickActions(List<ServiceCategory> categories) {
-    final actions = categories.take(4).toList();
+    final actions = categories.take(5).toList();
     if (actions.isEmpty) {
       return const SizedBox.shrink();
     }
-    return Row(
-      children: actions
-          .map(
-            (category) => Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: () => _openCategory(category),
-                  child: Ink(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 10,
-                      horizontal: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF3F7FB),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Column(
-                      children: <Widget>[
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(Icons.bolt_rounded, size: 18),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          category.name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            height: 1.2,
-                          ),
-                        ),
-                      ],
-                    ),
+    return SizedBox(
+      height: 160,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: actions.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final category = actions[index];
+          return InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () => _openCategory(category),
+            child: Container(
+              width: 230,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                image: category.imageUrl.isEmpty
+                    ? null
+                    : DecorationImage(
+                        image: NetworkImage(category.imageUrl),
+                        fit: BoxFit.cover,
+                        filterQuality: FilterQuality.low,
+                      ),
+                color: const Color(0xFFE9EDF3),
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: const LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: <Color>[
+                      Color(0xD915171B),
+                      Color(0x6015171B),
+                      Color(0x1015171B),
+                    ],
                   ),
+                ),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Spacer(),
+                    Text(
+                      category.name.toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      category.description.trim().isEmpty
+                          ? 'Fresh looks and easy at-home bookings'
+                          : category.description.trim(),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        height: 1.05,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text(
+                        'Book now',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          )
-          .toList(),
+          );
+        },
+      ),
     );
   }
 
   Widget _buildSpotlightStrip(List<_HomeSpotlight> spotlight) {
     return SizedBox(
-      height: 205,
+      height: 208,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: spotlight.length,
+        itemCount: spotlight.length > 6 ? 6 : spotlight.length,
         separatorBuilder: (context, index) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
           final item = spotlight[index];
@@ -628,61 +656,46 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
           return InkWell(
             borderRadius: BorderRadius.circular(18),
             onTap: () => _openCategory(item.category),
-            child: Container(
-              width: 176,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: const Color(0xFFE2E9F0)),
-              ),
+            child: SizedBox(
+              width: 132,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   _buildImage(
                     item.service.imageUrl,
                     height: 112,
-                    width: 176,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(18),
-                      topRight: Radius.circular(18),
-                    ),
-                    fallbackIcon: Icons.room_service_outlined,
+                    width: 132,
+                    borderRadius: BorderRadius.circular(16),
+                    fallbackIcon: Icons.self_improvement_outlined,
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
-                    child: Text(
-                      item.service.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        height: 1.2,
-                      ),
+                  const SizedBox(height: 8),
+                  Text(
+                    item.service.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      height: 1.2,
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
-                    child: Text(
-                      item.category.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF5A6C7C),
-                      ),
+                  Text(
+                    item.service.description.trim().isEmpty
+                        ? item.category.name
+                        : item.service.description.trim(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF676B73),
                     ),
                   ),
-                  const Spacer(),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-                    child: Text(
-                      'Starts at ${_formatPrice(price)}',
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: Color(0xFF0F5B88),
-                        fontWeight: FontWeight.w700,
-                      ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatPrice(price),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
                     ),
                   ),
                 ],
@@ -702,69 +715,109 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
 
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(24),
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         onTap: () => _openCategory(category),
         child: Ink(
-          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE2E9F0)),
-            boxShadow: const <BoxShadow>[
-              BoxShadow(
-                color: Color(0x090F2A3D),
-                blurRadius: 14,
-                offset: Offset(0, 8),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(24),
+            color: Colors.white,
+            border: Border.all(color: const Color(0xFFE7E8EC)),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              _buildImage(
-                category.imageUrl,
-                height: 88,
-                width: 88,
-                borderRadius: BorderRadius.circular(14),
+              Stack(
+                children: <Widget>[
+                  _buildImage(
+                    category.imageUrl,
+                    height: 196,
+                    width: double.infinity,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
+                    ),
+                    fallbackIcon: Icons.cleaning_services_outlined,
+                  ),
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(24),
+                          topRight: Radius.circular(24),
+                        ),
+                        gradient: const LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: <Color>[
+                            Color(0xD8171A1F),
+                            Color(0x40171A1F),
+                            Color(0x10171A1F),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: 16,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          category.name.toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
                   children: <Widget>[
-                    Text(
-                      category.name,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                    Expanded(
+                      child: Text(
+                        price == null
+                            ? '${category.services.length} curated services'
+                            : 'Starts at ${_formatPrice(price)}',
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          color: Color(0xFF5F6470),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: Color(0xFF5D6E7D),
-                        height: 1.25,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      price == null
-                          ? 'View services'
-                          : 'From ${_formatPrice(price)}',
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: Color(0xFF0F5B88),
+                    const Text(
+                      'Explore',
+                      style: TextStyle(
+                        color: Color(0xFF6E26FF),
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: Color(0xFF63798E)),
             ],
           ),
         ),
@@ -774,14 +827,10 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
 
   @override
   Widget build(BuildContext context) {
-    final query = _searchController.text.trim().toLowerCase();
-    final filtered = _categories.where((category) {
-      if (category.name.toLowerCase().contains(query)) return true;
-      return category.services.any(
-        (svc) => svc.name.toLowerCase().contains(query),
-      );
-    }).toList();
-    final spotlight = _spotlightsFor(filtered);
+    final query = _searchQuery;
+    final filtered = _filteredCategories;
+    final spotlight = _spotlight;
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     if (_loading) {
       return loadingView();
@@ -793,20 +842,27 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
         color: const Color(0xFFF6F8FB),
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           slivers: <Widget>[
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: _buildHeroSection(),
+            if (!keyboardVisible)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: _buildHeroSection(),
+                ),
               ),
-            ),
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  keyboardVisible ? 12 : 12,
+                  16,
+                  0,
+                ),
                 child: _buildLocationAndSearchCard(),
               ),
             ),
-            if (filtered.isNotEmpty)
+            if (!keyboardVisible && filtered.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
@@ -826,7 +882,7 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                   ),
                 ),
               ),
-            if (filtered.isNotEmpty)
+            if (!keyboardVisible && filtered.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -854,7 +910,7 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                   ),
                 ),
               ),
-            if (spotlight.isNotEmpty)
+            if (!keyboardVisible && spotlight.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(0, 2, 0, 0),
@@ -883,13 +939,17 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      filtered.isEmpty ? 'Services' : 'All Services',
+                      keyboardVisible
+                          ? 'Search Results'
+                          : filtered.isEmpty
+                          ? 'Services'
+                          : 'All Services',
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    if (filtered.isNotEmpty)
+                    if (!keyboardVisible && filtered.isNotEmpty)
                       Text(
                         '${filtered.length} categories near you',
                         style: const TextStyle(
@@ -1009,83 +1069,356 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
     }
   }
 
+  Widget _benefitRow(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(Icons.check_circle_outline, size: 16),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _offerChip(String title, String subtitle) {
+    return Container(
+      width: 172,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EC)),
+      ),
+      child: Row(
+        children: <Widget>[
+          const Icon(Icons.sell_rounded, color: Color(0xFF13A05F)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF676B73),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatPrice(double value) {
+    if (value == value.roundToDouble()) {
+      return '\u20B9${value.toStringAsFixed(0)}';
+    }
+    return '\u20B9${value.toStringAsFixed(2)}';
+  }
+
+  Widget _providerCard(ProviderItem provider, ServiceItem service) {
+    final price = provider.price ?? service.startsFrom ?? service.basePrice;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE6E8EE)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          imageOrPlaceholder(
+            service.imageUrl,
+            width: 84,
+            height: 84,
+            borderRadius: const BorderRadius.all(Radius.circular(14)),
+            fallbackIcon: Icons.content_cut_rounded,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  service.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  service.description.trim().isEmpty
+                      ? 'Delivered by ${provider.fullName.isEmpty ? provider.username : provider.fullName}'
+                      : service.description.trim(),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF666B74),
+                    fontSize: 12.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${provider.rating.toStringAsFixed(1)} (786K) | 55 mins',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF666B74),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _formatPrice(price),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            children: <Widget>[
+              FilledButton(
+                onPressed: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => CreateBookingPage(
+                        api: widget.api,
+                        service: service,
+                        provider: provider,
+                        onSessionExpired: widget.onSessionExpired,
+                      ),
+                    ),
+                  );
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF7B2CFF),
+                  minimumSize: const Size(76, 42),
+                ),
+                child: const Text('Add'),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'View details',
+                style: TextStyle(
+                  color: Color(0xFF7B2CFF),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final selected = _selectedService ?? widget.category.services.first;
+    final selectedPrice = selected.startsFrom ?? selected.basePrice;
+
     return Scaffold(
-      appBar: AppBar(title: Text(widget.category.name)),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      backgroundColor: const Color(0xFFF6F6F7),
+      appBar: AppBar(
+        title: Text(widget.category.name),
+        actions: const <Widget>[
+          Padding(
+            padding: EdgeInsets.only(right: 12),
+            child: Icon(Icons.share_outlined),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: <Widget>[
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5E4CD),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        _benefitRow(
+                          selected.description.trim().isEmpty
+                              ? 'For a brighter at-home experience'
+                              : selected.description.trim(),
+                        ),
+                        _benefitRow('Top-rated professionals'),
+                        _benefitRow('Transparent pricing and quick slots'),
+                      ],
+                    ),
+                  ),
+                ),
+                imageOrPlaceholder(
+                  selected.imageUrl,
+                  width: 162,
+                  height: 188,
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
+                  ),
+                  fallbackIcon: Icons.spa_outlined,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            selected.name,
+            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            '4.80 (3.4 M bookings)',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 14),
           SizedBox(
-            height: 58,
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            height: 76,
+            child: ListView(
               scrollDirection: Axis.horizontal,
+              children: <Widget>[
+                _offerChip('20% off on Kotak', 'Cashback up to INR 350'),
+                const SizedBox(width: 10),
+                _offerChip('CRED Cashback', 'Cashback up to INR 200'),
+                const SizedBox(width: 10),
+                _offerChip('Flat 15% off', 'Selected payment methods'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 22),
+          const Text(
+            'Service menu',
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 164,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: widget.category.services.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 10),
               itemBuilder: (context, index) {
                 final service = widget.category.services[index];
-                final selected = _selectedService?.id == service.id;
-                return ChoiceChip(
-                  selected: selected,
-                  label: Text(service.name),
-                  onSelected: (_) {
+                final isSelected = selected.id == service.id;
+                final price = service.startsFrom ?? service.basePrice;
+                return InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () {
                     setState(() {
                       _selectedService = service;
                     });
                     _loadProviders();
                   },
-                );
-              },
-              separatorBuilder: (context, index) => const SizedBox(width: 8),
-              itemCount: widget.category.services.length,
-            ),
-          ),
-          Expanded(
-            child: _loading
-                ? loadingView()
-                : _providers.isEmpty
-                ? emptyView(
-                    'No providers found for this service in selected city',
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: _providers.length,
-                    itemBuilder: (context, index) {
-                      final provider = _providers[index];
-                      return Card(
-                        child: ListTile(
-                          title: Text(
-                            provider.fullName.isEmpty
-                                ? provider.username
-                                : provider.fullName,
+                  child: Container(
+                    width: 108,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? const Color(0xFFF4ECFF)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isSelected
+                            ? const Color(0xFF8F3DFF)
+                            : const Color(0xFFE7E8ED),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        imageOrPlaceholder(
+                          service.imageUrl,
+                          width: 92,
+                          height: 72,
+                          borderRadius: const BorderRadius.all(
+                            Radius.circular(12),
                           ),
-                          subtitle: Text(
-                            'Rating: ${provider.rating.toStringAsFixed(1)}  •  '
-                            'Price: ${provider.price?.toStringAsFixed(2) ?? 'N/A'}\n'
-                            '${provider.city.isEmpty ? 'Local provider' : provider.city}',
-                          ),
-                          isThreeLine: true,
-                          trailing: FilledButton(
-                            onPressed: () async {
-                              final service = _selectedService;
-                              if (service == null) return;
-                              await Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => CreateBookingPage(
-                                    api: widget.api,
-                                    service: service,
-                                    provider: provider,
-                                    onSessionExpired: widget.onSessionExpired,
-                                  ),
-                                ),
-                              );
-                            },
-                            child: const Text('Book'),
+                          fallbackIcon: Icons.face_retouching_natural_outlined,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          service.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12.2,
+                            height: 1.2,
                           ),
                         ),
-                      );
-                    },
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatPrice(price),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1E2228),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                );
+              },
+            ),
           ),
+          const SizedBox(height: 22),
+          Row(
+            children: <Widget>[
+              const Expanded(
+                child: Text(
+                  'Professionals available',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                ),
+              ),
+              Text(
+                'From ${_formatPrice(selectedPrice)}',
+                style: const TextStyle(
+                  color: Color(0xFF7B2CFF),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_loading)
+            const LinearProgressIndicator()
+          else if (_providers.isEmpty)
+            emptyView('No professionals found in selected city')
+          else
+            ..._providers.map((provider) => _providerCard(provider, selected)),
         ],
       ),
     );
@@ -1123,6 +1456,8 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
 
   String _timeSlot = 'MORNING';
   DateTime _date = DateTime.now();
+  bool _avoidCalls = true;
+  bool _sendOffers = true;
 
   @override
   void initState() {
@@ -1217,140 +1552,424 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
     }
   }
 
+  double _servicePrice(ServiceItem service) {
+    return service.startsFrom ?? service.basePrice;
+  }
+
+  List<ServiceItem> _selectedServices() {
+    final allServices = <ServiceItem>[widget.service, ..._providerServices];
+    final seen = <int>{};
+    final unique = allServices
+        .where((service) => seen.add(service.id))
+        .toList();
+    return unique
+        .where((service) => _selectedServiceIds.contains(service.id))
+        .toList();
+  }
+
+  double _subtotal() {
+    return _selectedServices().fold<double>(
+      0,
+      (sum, service) => sum + _servicePrice(service),
+    );
+  }
+
+  double _taxesAndFees() {
+    final subtotal = _subtotal();
+    if (subtotal <= 0) return 0;
+    return double.parse((subtotal * 0.033).toStringAsFixed(0));
+  }
+
+  String _formatPrice(double value) {
+    if (value == value.roundToDouble()) {
+      return '\u20B9${value.toStringAsFixed(0)}';
+    }
+    return '\u20B9${value.toStringAsFixed(2)}';
+  }
+
+  Widget _summaryRow(String label, String value, {bool strong = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: strong ? 16 : 14,
+                fontWeight: strong ? FontWeight.w800 : FontWeight.w500,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: strong ? 16 : 14,
+              fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _addonCard(ServiceItem service) {
+    return Container(
+      width: 132,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE6E8EE)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          imageOrPlaceholder(
+            service.imageUrl,
+            width: 112,
+            height: 72,
+            borderRadius: const BorderRadius.all(Radius.circular(12)),
+            fallbackIcon: Icons.auto_awesome_outlined,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            service.name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _formatPrice(_servicePrice(service)),
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const Spacer(),
+          FilledButton(
+            onPressed: () {
+              setState(() {
+                _selectedServiceIds.add(service.id);
+              });
+            },
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(36),
+              backgroundColor: const Color(0xFF7B2CFF),
+            ),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final minDate = DateTime.now();
+    final selectedServices = _selectedServices();
+    final subtotal = _subtotal();
+    final fees = _taxesAndFees();
+    final total = subtotal + fees;
+    final addonServices = _providerServices
+        .where((service) => !_selectedServiceIds.contains(service.id))
+        .take(4)
+        .toList();
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Booking')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Card(
-              child: ListTile(
-                title: Text(widget.service.name),
-                subtitle: Text(
-                  widget.provider.fullName.isEmpty
-                      ? widget.provider.username
-                      : widget.provider.fullName,
-                ),
-              ),
+      backgroundColor: const Color(0xFFF6F6F7),
+      appBar: AppBar(title: const Text('Summary')),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+        child: FilledButton(
+          onPressed: _submitting ? null : _submit,
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF7B2CFF),
+            minimumSize: const Size.fromHeight(52),
+          ),
+          child: Text(
+            _submitting
+                ? 'Processing...'
+                : total <= 0
+                ? 'Make Payment'
+                : 'Make Payment ${_formatPrice(total)}',
+          ),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+        children: <Widget>[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFE6E8EE)),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _addressController,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Address'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _locationController,
-              decoration: const InputDecoration(
-                labelText: 'Customer location (optional)',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _landmarkController,
-              decoration: const InputDecoration(
-                labelText: 'Landmark (optional)',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _notesController,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Notes (optional)'),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        firstDate: minDate,
-                        lastDate: minDate.add(const Duration(days: 365)),
-                        initialDate: _date.isBefore(minDate) ? minDate : _date,
-                      );
-                      if (picked != null) {
-                        setState(() {
-                          _date = picked;
-                        });
-                      }
-                    },
-                    icon: const Icon(Icons.calendar_today),
-                    label: Text('${_date.day}/${_date.month}/${_date.year}'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _timeSlot,
-                    items: const <DropdownMenuItem<String>>[
-                      DropdownMenuItem(
-                        value: 'MORNING',
-                        child: Text('Morning'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: selectedServices.map((service) {
+                final isCore = service.id == widget.service.id;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              service.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
+                            ),
+                            if (isCore)
+                              const Text(
+                                'Primary service',
+                                style: TextStyle(
+                                  color: Color(0xFF6B707A),
+                                  fontSize: 12,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                      DropdownMenuItem(
-                        value: 'AFTERNOON',
-                        child: Text('Afternoon'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'EVENING',
-                        child: Text('Evening'),
+                      if (!isCore)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0E4FF),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Row(
+                            children: <Widget>[
+                              IconButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _selectedServiceIds.remove(service.id);
+                                  });
+                                },
+                                icon: const Icon(Icons.remove, size: 16),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              const Text('1'),
+                              IconButton(
+                                onPressed: null,
+                                icon: const Icon(Icons.add, size: 16),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(width: 12),
+                      Text(
+                        _formatPrice(_servicePrice(service)),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
                       ),
                     ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _timeSlot = value;
-                        });
-                      }
-                    },
-                    decoration: const InputDecoration(labelText: 'Time slot'),
                   ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 18),
+          if (!_loadingServices && addonServices.isNotEmpty) ...<Widget>[
+            const Text(
+              'Frequently added together',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 206,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: addonServices.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 12),
+                itemBuilder: (context, index) =>
+                    _addonCard(addonServices[index]),
+              ),
+            ),
+            const SizedBox(height: 18),
+          ],
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFE6E8EE)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                  'Service preferences',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                ),
+                CheckboxListTile(
+                  value: _avoidCalls,
+                  onChanged: (value) {
+                    setState(() {
+                      _avoidCalls = value ?? false;
+                    });
+                  },
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Avoid calling before reaching the location',
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+                CheckboxListTile(
+                  value: _sendOffers,
+                  onChanged: (value) {
+                    setState(() {
+                      _sendOffers = value ?? false;
+                    });
+                  },
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Coupons and offers'),
+                  secondary: const Text(
+                    '7 offers',
+                    style: TextStyle(
+                      color: Color(0xFF7B2CFF),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'Select services',
-              style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFE6E8EE)),
             ),
-            const SizedBox(height: 8),
-            if (_loadingServices)
-              const LinearProgressIndicator()
-            else
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _providerServices.map((service) {
-                  final selected = _selectedServiceIds.contains(service.id);
-                  return FilterChip(
-                    selected: selected,
-                    label: Text(service.name),
-                    onSelected: (value) {
-                      setState(() {
-                        if (value) {
-                          _selectedServiceIds.add(service.id);
-                        } else if (service.id != widget.service.id) {
-                          _selectedServiceIds.remove(service.id);
-                        }
-                      });
-                    },
-                  );
-                }).toList(),
-              ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _submitting ? null : _submit,
-              child: Text(_submitting ? 'Booking...' : 'Confirm Booking'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                  'Address and schedule',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _addressController,
+                  maxLines: 2,
+                  decoration: const InputDecoration(labelText: 'Address'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _locationController,
+                  decoration: const InputDecoration(
+                    labelText: 'Customer location (optional)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _landmarkController,
+                  decoration: const InputDecoration(
+                    labelText: 'Landmark (optional)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _notesController,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Notes (optional)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            firstDate: minDate,
+                            lastDate: minDate.add(const Duration(days: 365)),
+                            initialDate: _date.isBefore(minDate)
+                                ? minDate
+                                : _date,
+                          );
+                          if (picked != null) {
+                            setState(() {
+                              _date = picked;
+                            });
+                          }
+                        },
+                        icon: const Icon(Icons.calendar_today),
+                        label: Text(
+                          '${_date.day}/${_date.month}/${_date.year}',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _timeSlot,
+                        items: const <DropdownMenuItem<String>>[
+                          DropdownMenuItem(
+                            value: 'MORNING',
+                            child: Text('Morning'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'AFTERNOON',
+                            child: Text('Afternoon'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'EVENING',
+                            child: Text('Evening'),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() {
+                              _timeSlot = value;
+                            });
+                          }
+                        },
+                        decoration: const InputDecoration(
+                          labelText: 'Time slot',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFE6E8EE)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                  'Payment summary',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 14),
+                _summaryRow('Item total', _formatPrice(subtotal)),
+                _summaryRow('Taxes and fee', _formatPrice(fees)),
+                const Divider(height: 20),
+                _summaryRow('Total', _formatPrice(total), strong: true),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

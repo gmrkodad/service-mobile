@@ -5,11 +5,7 @@ import '../models.dart';
 import 'common.dart';
 
 class AuthPage extends StatefulWidget {
-  const AuthPage({
-    super.key,
-    required this.api,
-    required this.onAuthenticated,
-  });
+  const AuthPage({super.key, required this.api, required this.onAuthenticated});
 
   final ApiService api;
   final Future<void> Function() onAuthenticated;
@@ -18,8 +14,10 @@ class AuthPage extends StatefulWidget {
   State<AuthPage> createState() => _AuthPageState();
 }
 
-class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin {
+class _AuthPageState extends State<AuthPage>
+    with SingleTickerProviderStateMixin {
   late final TabController _tabController;
+  int _activeTabIndex = 0;
 
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -39,19 +37,22 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
   bool _busy = false;
   bool _signupBusy = false;
   bool _registerAsProvider = false;
+  bool _providerServicesLoaded = false;
 
-  List<ServiceCategory> _publicCategories = <ServiceCategory>[];
+  List<(String, ServiceItem)> _providerSignupServices =
+      <(String, ServiceItem)>[];
   final Set<int> _selectedServiceIds = <int>{};
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _loadPublicServices();
+    _tabController.addListener(_handleTabChange);
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_handleTabChange);
     _tabController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
@@ -69,12 +70,37 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
     super.dispose();
   }
 
+  void _handleTabChange() {
+    if (_activeTabIndex == _tabController.index || !mounted) {
+      return;
+    }
+    setState(() {
+      _activeTabIndex = _tabController.index;
+    });
+    _maybeLoadProviderServices();
+  }
+
+  void _maybeLoadProviderServices() {
+    if (_providerServicesLoaded ||
+        _activeTabIndex != 1 ||
+        !_registerAsProvider) {
+      return;
+    }
+    _providerServicesLoaded = true;
+    _loadPublicServices();
+  }
+
   Future<void> _loadPublicServices() async {
     try {
       final categories = await widget.api.fetchCategories(auth: false);
       if (!mounted) return;
       setState(() {
-        _publicCategories = categories;
+        _providerSignupServices = categories
+            .expand(
+              (category) =>
+                  category.services.map((svc) => (category.name, svc)),
+            )
+            .toList(growable: false);
       });
     } catch (_) {
       // Keep signup usable; provider service selection may remain empty.
@@ -82,8 +108,12 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
   }
 
   Future<void> _loginWithPassword() async {
-    if (_usernameController.text.trim().isEmpty || _passwordController.text.isEmpty) {
-      showApiError(context, const ApiException('Username and password are required'));
+    if (_usernameController.text.trim().isEmpty ||
+        _passwordController.text.isEmpty) {
+      showApiError(
+        context,
+        const ApiException('Username and password are required'),
+      );
       return;
     }
     FocusScope.of(context).unfocus();
@@ -137,7 +167,8 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
   }
 
   Future<void> _verifyLoginOtp() async {
-    if (_otpPhoneController.text.trim().isEmpty || _otpCodeController.text.trim().isEmpty) {
+    if (_otpPhoneController.text.trim().isEmpty ||
+        _otpCodeController.text.trim().isEmpty) {
       showApiError(context, const ApiException('Phone and OTP are required'));
       return;
     }
@@ -169,17 +200,26 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
         _registerUsernameController.text.trim().isEmpty ||
         _registerEmailController.text.trim().isEmpty ||
         _registerPasswordController.text.isEmpty) {
-      showApiError(context, const ApiException('All signup fields are required'));
+      showApiError(
+        context,
+        const ApiException('All signup fields are required'),
+      );
       return;
     }
 
     if (_registerAsProvider) {
       if (_providerCityController.text.trim().isEmpty) {
-        showApiError(context, const ApiException('City is required for provider signup'));
+        showApiError(
+          context,
+          const ApiException('City is required for provider signup'),
+        );
         return;
       }
       if (_selectedServiceIds.isEmpty) {
-        showApiError(context, const ApiException('Select at least one service'));
+        showApiError(
+          context,
+          const ApiException('Select at least one service'),
+        );
         return;
       }
     }
@@ -313,12 +353,14 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
                     child: Center(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 560),
-                        child: TabBarView(
-                          controller: _tabController,
-                          children: <Widget>[
-                            _buildLoginTab(),
-                            _buildSignupTab(),
-                          ],
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 180),
+                          child: KeyedSubtree(
+                            key: ValueKey<int>(_activeTabIndex),
+                            child: _activeTabIndex == 0
+                                ? _buildLoginTab()
+                                : _buildSignupTab(),
+                          ),
                         ),
                       ),
                     ),
@@ -359,9 +401,15 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
           spacing: 8,
           runSpacing: 8,
           children: const <Widget>[
-            _BenefitPill(icon: Icons.verified_user_outlined, label: 'Verified pros'),
+            _BenefitPill(
+              icon: Icons.verified_user_outlined,
+              label: 'Verified pros',
+            ),
             _BenefitPill(icon: Icons.bolt_rounded, label: 'Fast booking'),
-            _BenefitPill(icon: Icons.payments_outlined, label: 'Transparent pricing'),
+            _BenefitPill(
+              icon: Icons.payments_outlined,
+              label: 'Transparent pricing',
+            ),
           ],
         ),
       ],
@@ -489,9 +537,7 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
   }
 
   Widget _buildSignupTab() {
-    final services = _publicCategories
-        .expand((category) => category.services.map((svc) => (category.name, svc)))
-        .toList();
+    final services = _providerSignupServices;
 
     return SingleChildScrollView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -517,6 +563,7 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
                     setState(() {
                       _registerAsProvider = selection.first;
                     });
+                    _maybeLoadProviderServices();
                   },
                 ),
                 const SizedBox(height: 16),
@@ -591,13 +638,17 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
                       children: services.map((item) {
                         final categoryName = item.$1;
                         final service = item.$2;
-                        final selected = _selectedServiceIds.contains(service.id);
+                        final selected = _selectedServiceIds.contains(
+                          service.id,
+                        );
                         return FilterChip(
                           selected: selected,
                           selectedColor: const Color(0xFFE5EDFF),
                           label: Text('$categoryName - ${service.name}'),
                           side: BorderSide(
-                            color: selected ? const Color(0xFF5B3DF5) : const Color(0xFFD2DAF0),
+                            color: selected
+                                ? const Color(0xFF5B3DF5)
+                                : const Color(0xFFD2DAF0),
                           ),
                           onSelected: _signupBusy
                               ? null
@@ -619,7 +670,9 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
                   onPressed: _signupBusy ? null : _submitSignup,
                   icon: const Icon(Icons.rocket_launch_outlined),
                   label: Text(
-                    _registerAsProvider ? 'Create Provider Account' : 'Create Customer Account',
+                    _registerAsProvider
+                        ? 'Create Provider Account'
+                        : 'Create Customer Account',
                   ),
                 ),
               ],
@@ -640,10 +693,7 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
       child: Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-        ),
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       ),
     );
   }
