@@ -7,8 +7,10 @@ void main() {
   testWidgets('Auth page loads for signed-out users', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     await tester.pumpWidget(const ServiceApp());
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
 
-    expect(find.text('ServiceApp Mobile'), findsOneWidget);
+    expect(find.text('ServiceApp'), findsOneWidget);
+    expect(find.text('Password Login'), findsOneWidget);
+    expect(find.text('OTP Login'), findsOneWidget);
   });
 }

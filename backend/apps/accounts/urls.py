@@ -1,0 +1,51 @@
+from django.urls import path
+
+from .views import (
+    AdminProviderServicePricesView,
+    AdminProviderServicesView,
+    AdminUsersListView,
+    CustomerCityView,
+    MeChangePasswordView,
+    MeUpdateView,
+    NotificationsListView,
+    NotificationsReadAllView,
+    NotificationReadView,
+    OtpSendSignupView,
+    OtpSendView,
+    OtpVerifyView,
+    ProvidersListView,
+    ProviderMyServicePricesView,
+    ProviderMyServicesView,
+    ReverseGeoView,
+    SignupCustomerView,
+    SignupProviderView,
+    ToggleAdminUserView,
+    UserDeleteView,
+    me_view,
+)
+
+
+urlpatterns = [
+    path("auth/otp/send/", OtpSendView.as_view()),
+    path("auth/otp/verify/", OtpVerifyView.as_view()),
+    path("auth/otp/send-signup/", OtpSendSignupView.as_view()),
+    path("signup/customer/", SignupCustomerView.as_view()),
+    path("signup/provider/", SignupProviderView.as_view()),
+    path("me/", me_view),
+    path("me/update/", MeUpdateView.as_view()),
+    path("me/change-password/", MeChangePasswordView.as_view()),
+    path("me/customer-city/", CustomerCityView.as_view()),
+    path("geo/reverse/", ReverseGeoView.as_view()),
+    path("notifications/", NotificationsListView.as_view()),
+    path("notifications/read/<int:notification_id>/", NotificationReadView.as_view()),
+    path("notifications/read-all/", NotificationsReadAllView.as_view()),
+    path("providers/", ProvidersListView.as_view()),
+    path("providers/me/services/", ProviderMyServicesView.as_view()),
+    path("providers/me/service-prices/", ProviderMyServicePricesView.as_view()),
+    path("admin/users/", AdminUsersListView.as_view()),
+    path("admin/users/<int:user_id>/toggle/", ToggleAdminUserView.as_view()),
+    path("admin/users/<int:user_id>/", UserDeleteView.as_view()),
+    path("admin/providers/<int:user_id>/services/", AdminProviderServicesView.as_view()),
+    path("admin/providers/<int:user_id>/service-prices/", AdminProviderServicePricesView.as_view()),
+]
+

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import '../api.dart';
 import '../models.dart';
 import '../session.dart';
@@ -52,7 +54,10 @@ class _CustomerShellState extends State<CustomerShell> {
     ];
 
     return Scaffold(
-      body: SafeArea(child: tabs[_index]),
+      body: ColoredBox(
+        color: UiTone.shellBackground,
+        child: SafeArea(child: tabs[_index]),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (value) {
@@ -106,6 +111,7 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
   final _cityController = TextEditingController();
 
   bool _loading = true;
+  bool _locating = false;
   List<ServiceCategory> _categories = <ServiceCategory>[];
   String _searchQuery = '';
   List<ServiceCategory> _filteredCategories = <ServiceCategory>[];
@@ -190,6 +196,64 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
     }
     _cityController.text = city;
     await _saveCityValue(city);
+  }
+
+  Future<void> _useCurrentLocation() async {
+    setState(() {
+      _locating = true;
+    });
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw const ApiException('Location services are turned off');
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied) {
+        throw const ApiException('Location permission was denied');
+      }
+      if (permission == LocationPermission.deniedForever) {
+        throw const ApiException(
+          'Location permission is permanently denied. Enable it in system settings.',
+        );
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+      final places = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+      final place = places.isEmpty ? null : places.first;
+      final resolvedCity = _normalizeCity(
+        place?.locality ??
+            place?.subAdministrativeArea ??
+            place?.administrativeArea ??
+            '',
+      );
+      if (resolvedCity.isEmpty) {
+        throw const ApiException('Could not determine your city from location');
+      }
+
+      _cityController.text = resolvedCity;
+      await _saveCityValue(resolvedCity);
+    } catch (error) {
+      if (!mounted) return;
+      showApiError(context, error);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _locating = false;
+        });
+      }
+    }
   }
 
   Future<void> _saveCityValue(String city, {bool showMessage = true}) async {
@@ -329,69 +393,165 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
   Widget _buildHeroSection() {
     final city = _normalizeCity(_cityController.text);
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[Color(0xFFFFF7ED), Color(0xFFF5E4CD)],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE3D3BC)),
+      padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
+      decoration: elevatedSurface(
+        color: const Color(0xFF132A4A),
+        radius: 36,
+        border: const Color(0xFF1D4168),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(
-                  Icons.home_repair_service_rounded,
-                  color: Color(0xFF1F232B),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.12),
+                        ),
+                      ),
+                      child: Text(
+                        city.isEmpty
+                            ? 'PREMIUM AT-HOME SERVICES'
+                            : 'NOW BOOKING IN ${city.toUpperCase()}',
+                        style: const TextStyle(
+                          color: Color(0xFFFFE2C7),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.7,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'A calmer way to book help for your home.',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w800,
+                        height: 1.02,
+                        letterSpacing: -1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      city.isEmpty
+                          ? 'Discover beautifully presented services, transparent pricing, and professionals you can trust.'
+                          : 'From cleaning to self-care, book curated services with transparent pricing and dependable professionals in $city.',
+                      style: const TextStyle(
+                        color: Color(0xFFD5E3F8),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  city.isEmpty ? 'Home Services' : city,
-                  style: TextStyle(
-                    color: const Color(0xFF191B1F),
-                    fontSize: city.isEmpty ? 19 : 17,
-                    fontWeight: FontWeight.w800,
+              const SizedBox(width: 16),
+              Container(
+                width: 92,
+                height: 112,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3E3),
+                  borderRadius: BorderRadius.circular(28),
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: <Widget>[
+                    Positioned(
+                      top: 14,
+                      right: 14,
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFD2A1),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.weekend_rounded,
+                      color: Color(0xFFB16A28),
+                      size: 44,
+                    ),
+                    Positioned(
+                      bottom: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Text(
+                          '2 hrs',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: UiTone.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: <Widget>[
+              _heroTag(Icons.verified_user_outlined, 'Verified professionals'),
+              _heroTag(Icons.bolt_outlined, 'Same-day availability'),
+              _heroTag(Icons.sell_outlined, 'Transparent pricing'),
+            ],
+          ),
+          const SizedBox(height: 22),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            ),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: _heroStat(
+                    label: 'Curated categories',
+                    value: _categories.length.toString(),
                   ),
                 ),
-              ),
-              const Icon(Icons.search_rounded, color: Color(0xFF282C33)),
-              const SizedBox(width: 14),
-              const Icon(Icons.share_outlined, color: Color(0xFF282C33)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            city.isEmpty
-                ? 'Discover polished at-home services and book in minutes.'
-                : 'Serving $city right now with curated, top-rated professionals.',
-            style: TextStyle(
-              color: const Color(0xFF44474E),
-              fontSize: 13,
-              height: 1.3,
+                Container(
+                  width: 1,
+                  height: 38,
+                  color: Colors.white.withValues(alpha: 0.12),
+                ),
+                Expanded(
+                  child: _heroStat(
+                    label: city.isEmpty ? 'Set location' : 'City',
+                    value: city.isEmpty ? 'Choose now' : city,
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              _heroTag(Icons.check_circle_outline, 'Experienced professionals'),
-              _heroTag(Icons.sell_outlined, 'Affordable prices'),
-              _heroTag(Icons.flash_on_outlined, 'Mess-free service'),
-            ],
           ),
         ],
       ),
@@ -402,18 +562,19 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.72),
+        color: Colors.white.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, size: 14, color: const Color(0xFF23262B)),
+          Icon(icon, size: 14, color: const Color(0xFFFFE2C7)),
           const SizedBox(width: 6),
           Text(
             text,
             style: const TextStyle(
-              color: Color(0xFF23262B),
+              color: Colors.white,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -423,36 +584,117 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
     );
   }
 
+  Widget _heroStat({required String label, required String value}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFFD5E3F8),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildLocationAndSearchCard() {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFE4E7EE)),
+      padding: const EdgeInsets.all(18),
+      decoration: elevatedSurface(
+        radius: 30,
+        color: const Color(0xFFFFFBF6),
+        border: const Color(0xFFE6DCCD),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          const Text(
+            'What would you like help with today?',
+            style: TextStyle(
+              fontSize: 21,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Choose your city, search for a service, and book in a few calm steps.',
+            style: TextStyle(
+              color: UiTone.softText,
+              fontSize: 13.5,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 16),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              const Icon(Icons.place_outlined, color: Color(0xFF3E434C)),
-              const SizedBox(width: 8),
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: UiTone.primarySoft,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.place_outlined, color: UiTone.primary),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   _normalizeCity(_cityController.text).isEmpty
                       ? 'Set your service city'
                       : _normalizeCity(_cityController.text),
                   style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
                   ),
                 ),
               ),
-              TextButton(onPressed: _saveCity, child: const Text('Update')),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 14),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _locating ? null : _useCurrentLocation,
+                  icon: _locating
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.my_location_rounded),
+                  label: const Text('Use current'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton(
+                  onPressed: _saveCity,
+                  child: const Text('Update city'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           TextField(
             controller: _searchController,
             onChanged: (value) {
@@ -471,10 +713,10 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: <Widget>[
+                _smallFilter('Deep cleaning'),
+                _smallFilter('Beauty at home'),
                 _smallFilter('Instant slots'),
                 _smallFilter('4.5+ rated'),
-                _smallFilter('Top offers'),
-                _smallFilter('At-home'),
               ],
             ),
           ),
@@ -486,55 +728,61 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
   Widget _smallFilter(String text) {
     return Container(
       margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F6FA),
+        color: const Color(0xFFF8F1E6),
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE6D8C4)),
       ),
       child: Text(
         text,
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: UiTone.ink,
+        ),
       ),
     );
   }
 
   Widget _buildTopCategories(List<ServiceCategory> categories) {
     return SizedBox(
-      height: 124,
+      height: 150,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: categories.length > 8 ? 8 : categories.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 10),
+        separatorBuilder: (context, index) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
           final category = categories[index];
           return InkWell(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(22),
             onTap: () => _openCategory(category),
             child: Container(
-              width: 92,
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF7F7F8),
-                borderRadius: BorderRadius.circular(18),
+              width: 110,
+              padding: const EdgeInsets.all(10),
+              decoration: elevatedSurface(
+                radius: 24,
+                color: const Color(0xFFFFFBF6),
+                border: const Color(0xFFE6DCCD),
               ),
               child: Column(
                 children: <Widget>[
                   _buildImage(
                     category.imageUrl,
-                    height: 58,
-                    width: 58,
-                    borderRadius: BorderRadius.circular(14),
+                    height: 72,
+                    width: 90,
+                    borderRadius: BorderRadius.circular(18),
                     fallbackIcon: Icons.miscellaneous_services_outlined,
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   Text(
                     category.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12.2,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.5,
                       height: 1.2,
                     ),
                   ),
@@ -553,20 +801,21 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
       return const SizedBox.shrink();
     }
     return SizedBox(
-      height: 160,
+      height: 248,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: actions.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 12),
+        separatorBuilder: (context, index) => const SizedBox(width: 14),
         itemBuilder: (context, index) {
           final category = actions[index];
+          final price = _lowestPrice(category);
           return InkWell(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(28),
             onTap: () => _openCategory(category),
             child: Container(
-              width: 230,
+              width: 268,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(28),
                 image: category.imageUrl.isEmpty
                     ? null
                     : DecorationImage(
@@ -574,11 +823,11 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                         fit: BoxFit.cover,
                         filterQuality: FilterQuality.low,
                       ),
-                color: const Color(0xFFE9EDF3),
+                color: const Color(0xFFE9DFD2),
               ),
               child: Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(28),
                   gradient: const LinearGradient(
                     begin: Alignment.bottomCenter,
                     end: Alignment.topCenter,
@@ -589,47 +838,103 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                     ],
                   ),
                 ),
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 11,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.12),
+                            ),
+                          ),
+                          child: Text(
+                            category.name.toUpperCase(),
+                            style: const TextStyle(
+                              color: Color(0xFFFFE6CD),
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        if (price != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              'From ${_formatPrice(price)}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: UiTone.primary,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                     const Spacer(),
                     Text(
-                      category.name.toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
                       category.description.trim().isEmpty
-                          ? 'Fresh looks and easy at-home bookings'
+                          ? category.name
                           : category.description.trim(),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 26,
+                        fontSize: 24,
                         fontWeight: FontWeight.w800,
-                        height: 1.05,
+                        height: 1.02,
+                        letterSpacing: -0.8,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
+                    Text(
+                      '${category.services.length} carefully packaged services with professionals, pricing, and support handled for you.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 7,
+                        horizontal: 14,
+                        vertical: 9,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: const Color(0xFFFFF5E8),
                         borderRadius: BorderRadius.circular(999),
                       ),
-                      child: const Text(
-                        'Book now',
-                        style: TextStyle(fontWeight: FontWeight.w700),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            'Explore service',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          SizedBox(width: 6),
+                          Icon(Icons.arrow_forward_rounded, size: 16),
+                        ],
                       ),
                     ),
                   ],
@@ -644,29 +949,56 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
 
   Widget _buildSpotlightStrip(List<_HomeSpotlight> spotlight) {
     return SizedBox(
-      height: 208,
+      height: 222,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: spotlight.length > 6 ? 6 : spotlight.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 12),
+        separatorBuilder: (context, index) => const SizedBox(width: 14),
         itemBuilder: (context, index) {
           final item = spotlight[index];
           final price = item.service.startsFrom ?? item.service.basePrice;
           return InkWell(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(24),
             onTap: () => _openCategory(item.category),
-            child: SizedBox(
-              width: 132,
+            child: Container(
+              width: 164,
+              padding: const EdgeInsets.all(10),
+              decoration: elevatedSurface(
+                radius: 24,
+                color: const Color(0xFFFFFBF6),
+                border: const Color(0xFFE6DCCD),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   _buildImage(
                     item.service.imageUrl,
-                    height: 112,
-                    width: 132,
-                    borderRadius: BorderRadius.circular(16),
+                    height: 114,
+                    width: 144,
+                    borderRadius: BorderRadius.circular(18),
                     fallbackIcon: Icons.self_improvement_outlined,
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5EEE4),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      item.category.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        color: UiTone.primary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -674,8 +1006,8 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
                       height: 1.2,
                     ),
                   ),
@@ -694,8 +1026,8 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                   Text(
                     _formatPrice(price),
                     style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13.5,
                     ),
                   ),
                 ],
@@ -714,16 +1046,16 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
     final price = _lowestPrice(category);
 
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(24),
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(30),
       child: InkWell(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(30),
         onTap: () => _openCategory(category),
         child: Ink(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            color: Colors.white,
-            border: Border.all(color: const Color(0xFFE7E8EC)),
+          decoration: elevatedSurface(
+            radius: 30,
+            color: const Color(0xFFFFFBF7),
+            border: const Color(0xFFE6DCCD),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -735,8 +1067,8 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                     height: 196,
                     width: double.infinity,
                     borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
+                      topLeft: Radius.circular(30),
+                      topRight: Radius.circular(30),
                     ),
                     fallbackIcon: Icons.cleaning_services_outlined,
                   ),
@@ -744,16 +1076,16 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(24),
-                          topRight: Radius.circular(24),
+                          topLeft: Radius.circular(30),
+                          topRight: Radius.circular(30),
                         ),
                         gradient: const LinearGradient(
                           begin: Alignment.bottomCenter,
                           end: Alignment.topCenter,
                           colors: <Color>[
-                            Color(0xD8171A1F),
-                            Color(0x40171A1F),
-                            Color(0x10171A1F),
+                            Color(0xD112223A),
+                            Color(0x5012223A),
+                            Color(0x1012223A),
                           ],
                         ),
                       ),
@@ -766,24 +1098,34 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text(
-                          category.name.toUpperCase(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.5,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            category.name.toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 8),
                         Text(
                           description,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
                             height: 1.2,
                           ),
                         ),
@@ -793,27 +1135,41 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                 ],
               ),
               Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        price == null
-                            ? '${category.services.length} curated services'
-                            : 'Starts at ${_formatPrice(price)}',
-                        style: const TextStyle(
-                          fontSize: 13.5,
-                          color: Color(0xFF5F6470),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const Text(
-                      'Explore',
-                      style: TextStyle(
-                        color: Color(0xFF6E26FF),
+                    Text(
+                      price == null
+                          ? '${category.services.length} curated services'
+                          : 'Starts at ${_formatPrice(price)}',
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        color: Color(0xFF5F6470),
                         fontWeight: FontWeight.w700,
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            '${category.services.length} bookable services',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: UiTone.softText,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const Text(
+                          'View details',
+                          style: TextStyle(
+                            color: UiTone.secondary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -839,7 +1195,7 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
     return RefreshIndicator(
       onRefresh: _loadCategories,
       child: ColoredBox(
-        color: const Color(0xFFF6F8FB),
+        color: UiTone.shellBackground,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -865,15 +1221,23 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
             if (!keyboardVisible && filtered.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       const Text(
-                        'Quick Book',
+                        'Featured For You',
                         style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Editorial picks with clear pricing and quick booking.',
+                        style: TextStyle(
+                          color: UiTone.softText,
+                          fontSize: 12.8,
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -890,15 +1254,15 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       const Text(
-                        'Top Categories',
+                        'Browse Categories',
                         style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                       const SizedBox(height: 2),
                       const Text(
-                        'Popular choices for your home',
+                        'A calmer way to explore the essentials',
                         style: TextStyle(
                           color: Color(0xFF5D6E7D),
                           fontSize: 12.5,
@@ -922,8 +1286,8 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                         child: Text(
                           'Most Booked Services',
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
@@ -945,8 +1309,8 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                           ? 'Services'
                           : 'All Services',
                       style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     if (!keyboardVisible && filtered.isNotEmpty)
@@ -1077,13 +1441,21 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
         children: <Widget>[
           const Padding(
             padding: EdgeInsets.only(top: 2),
-            child: Icon(Icons.check_circle_outline, size: 16),
+            child: Icon(
+              Icons.check_circle_outline,
+              size: 16,
+              color: Color(0xFFFFD2A1),
+            ),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+                height: 1.35,
+              ),
             ),
           ),
         ],
@@ -1095,14 +1467,18 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
     return Container(
       width: 172,
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EC)),
-      ),
+      decoration: elevatedSurface(radius: 18, color: UiTone.surface),
       child: Row(
         children: <Widget>[
-          const Icon(Icons.sell_rounded, color: Color(0xFF13A05F)),
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEAF6EF),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.sell_rounded, color: UiTone.success),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -1142,96 +1518,137 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
     final price = provider.price ?? service.startsFrom ?? service.basePrice;
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE6E8EE)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          imageOrPlaceholder(
-            service.imageUrl,
-            width: 84,
-            height: 84,
-            borderRadius: const BorderRadius.all(Radius.circular(14)),
-            fallbackIcon: Icons.content_cut_rounded,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
+      decoration: elevatedSurface(radius: 24),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: <Widget>[
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
-                  service.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
-                  ),
+                imageOrPlaceholder(
+                  service.imageUrl,
+                  width: 88,
+                  height: 88,
+                  borderRadius: const BorderRadius.all(Radius.circular(18)),
+                  fallbackIcon: Icons.content_cut_rounded,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  service.description.trim().isEmpty
-                      ? 'Delivered by ${provider.fullName.isEmpty ? provider.username : provider.fullName}'
-                      : service.description.trim(),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF666B74),
-                    fontSize: 12.5,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '${provider.rating.toStringAsFixed(1)} (786K) | 55 mins',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF666B74),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _formatPrice(price),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 17,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        provider.fullName.isEmpty
+                            ? provider.username
+                            : provider.fullName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 17,
+                          color: UiTone.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        service.description.trim().isEmpty
+                            ? 'Delivered by a trusted pro for polished at-home service.'
+                            : service.description.trim(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: UiTone.softText,
+                          fontSize: 12.5,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: <Widget>[
+                          _providerMeta(
+                            Icons.star_rounded,
+                            '${provider.rating.toStringAsFixed(1)} rated',
+                          ),
+                          _providerMeta(
+                            Icons.location_on_outlined,
+                            provider.city.isEmpty ? 'Nearby' : provider.city,
+                          ),
+                          _providerMeta(Icons.schedule_outlined, 'Fast slots'),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-          ),
-          Column(
-            children: <Widget>[
-              FilledButton(
-                onPressed: () async {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => CreateBookingPage(
-                        api: widget.api,
-                        service: service,
-                        provider: provider,
-                        onSessionExpired: widget.onSessionExpired,
+            const SizedBox(height: 14),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      const Text(
+                        'Starting from',
+                        style: TextStyle(
+                          color: UiTone.softText,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                  );
-                },
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF7B2CFF),
-                  minimumSize: const Size(76, 42),
+                      const SizedBox(height: 4),
+                      Text(
+                        _formatPrice(price),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 22,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                child: const Text('Add'),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'View details',
-                style: TextStyle(
-                  color: Color(0xFF7B2CFF),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                FilledButton.icon(
+                  onPressed: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => CreateBookingPage(
+                          api: widget.api,
+                          service: service,
+                          provider: provider,
+                          onSessionExpired: widget.onSessionExpired,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.arrow_forward_rounded),
+                  label: const Text('Book Now'),
                 ),
-              ),
-            ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _providerMeta(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: UiTone.surfaceMuted,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 14, color: UiTone.primary),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: UiTone.ink,
+            ),
           ),
         ],
       ),
@@ -1244,7 +1661,7 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
     final selectedPrice = selected.startsFrom ?? selected.basePrice;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F7),
+      backgroundColor: UiTone.shellBackground,
       appBar: AppBar(
         title: Text(widget.category.name),
         actions: const <Widget>[
@@ -1258,36 +1675,88 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: <Widget>[
           Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5E4CD),
-              borderRadius: BorderRadius.circular(24),
+            decoration: elevatedSurface(
+              radius: 34,
+              color: const Color(0xFF132A4A),
+              border: const Color(0xFF1D4168),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.fromLTRB(20, 20, 16, 20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            widget.category.name.toUpperCase(),
+                            style: const TextStyle(
+                              color: Color(0xFFFFE2C7),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          selected.name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                            height: 1.05,
+                            letterSpacing: -0.8,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                         _benefitRow(
                           selected.description.trim().isEmpty
-                              ? 'For a brighter at-home experience'
+                              ? 'Designed for a polished at-home experience'
                               : selected.description.trim(),
                         ),
                         _benefitRow('Top-rated professionals'),
                         _benefitRow('Transparent pricing and quick slots'),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 9,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            'From ${_formatPrice(selectedPrice)}',
+                            style: const TextStyle(
+                              color: UiTone.primary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ),
                 imageOrPlaceholder(
                   selected.imageUrl,
-                  width: 162,
-                  height: 188,
+                  width: 148,
+                  height: 244,
                   borderRadius: const BorderRadius.only(
-                    topRight: Radius.circular(24),
-                    bottomRight: Radius.circular(24),
+                    topRight: Radius.circular(30),
+                    bottomRight: Radius.circular(30),
                   ),
                   fallbackIcon: Icons.spa_outlined,
                 ),
@@ -1295,14 +1764,19 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
             ),
           ),
           const SizedBox(height: 18),
-          Text(
-            selected.name,
-            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 6),
           const Text(
-            '4.80 (3.4 M bookings)',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            'Why customers book this',
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Thoughtfully packaged services, simple pricing, and professionals chosen for consistency.',
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w500,
+              color: UiTone.softText,
+              height: 1.35,
+            ),
           ),
           const SizedBox(height: 14),
           SizedBox(
@@ -1320,12 +1794,21 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
           ),
           const SizedBox(height: 22),
           const Text(
-            'Service menu',
+            'Choose Your Service',
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Each option is presented with a clear starting price.',
+            style: TextStyle(
+              color: UiTone.softText,
+              fontSize: 12.8,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 164,
+            height: 188,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: widget.category.services.length,
@@ -1335,7 +1818,7 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
                 final isSelected = selected.id == service.id;
                 final price = service.startsFrom ?? service.basePrice;
                 return InkWell(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(22),
                   onTap: () {
                     setState(() {
                       _selectedService = service;
@@ -1343,30 +1826,51 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
                     _loadProviders();
                   },
                   child: Container(
-                    width: 108,
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
+                    width: 144,
+                    padding: const EdgeInsets.all(10),
+                    decoration: elevatedSurface(
+                      radius: 24,
                       color: isSelected
-                          ? const Color(0xFFF4ECFF)
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isSelected
-                            ? const Color(0xFF8F3DFF)
-                            : const Color(0xFFE7E8ED),
-                      ),
+                          ? const Color(0xFFF4E8D8)
+                          : const Color(0xFFFFFBF6),
+                      border: isSelected
+                          ? UiTone.secondary
+                          : const Color(0xFFE6DCCD),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         imageOrPlaceholder(
                           service.imageUrl,
-                          width: 92,
-                          height: 72,
+                          width: 124,
+                          height: 86,
                           borderRadius: const BorderRadius.all(
-                            Radius.circular(12),
+                            Radius.circular(16),
                           ),
                           fallbackIcon: Icons.face_retouching_natural_outlined,
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? const Color(0xFFFFF4E7)
+                                : const Color(0xFFF5EEE4),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            isSelected ? 'Selected' : 'Service',
+                            style: TextStyle(
+                              color: isSelected
+                                  ? UiTone.secondary
+                                  : UiTone.primary,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Text(
@@ -1374,8 +1878,8 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12.2,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
                             height: 1.2,
                           ),
                         ),
@@ -1383,7 +1887,7 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
                         Text(
                           _formatPrice(price),
                           style: const TextStyle(
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w800,
                             color: Color(0xFF1E2228),
                           ),
                         ),
@@ -1399,14 +1903,14 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
             children: <Widget>[
               const Expanded(
                 child: Text(
-                  'Professionals available',
+                  'Available Professionals',
                   style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
                 ),
               ),
               Text(
                 'From ${_formatPrice(selectedPrice)}',
                 style: const TextStyle(
-                  color: Color(0xFF7B2CFF),
+                  color: UiTone.secondary,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -1617,11 +2121,7 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
     return Container(
       width: 132,
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE6E8EE)),
-      ),
+      decoration: elevatedSurface(radius: 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -1653,9 +2153,33 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
             },
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(36),
-              backgroundColor: const Color(0xFF7B2CFF),
             ),
             child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryBadge(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 14, color: const Color(0xFFFFE2C7)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 11.5,
+            ),
           ),
         ],
       ),
@@ -1675,22 +2199,49 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
         .toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F7),
-      appBar: AppBar(title: const Text('Summary')),
+      backgroundColor: UiTone.shellBackground,
+      appBar: AppBar(title: const Text('Checkout')),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-        child: FilledButton(
-          onPressed: _submitting ? null : _submit,
-          style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF7B2CFF),
-            minimumSize: const Size.fromHeight(52),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: elevatedSurface(
+            radius: 26,
+            color: Colors.white,
+            border: const Color(0xFFE6DAC8),
           ),
-          child: Text(
-            _submitting
-                ? 'Processing...'
-                : total <= 0
-                ? 'Make Payment'
-                : 'Make Payment ${_formatPrice(total)}',
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const Text(
+                      'Total payable',
+                      style: TextStyle(
+                        color: UiTone.softText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _formatPrice(total),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              FilledButton(
+                onPressed: _submitting ? null : _submit,
+                style: FilledButton.styleFrom(minimumSize: const Size(160, 54)),
+                child: Text(_submitting ? 'Processing...' : 'Confirm booking'),
+              ),
+            ],
           ),
         ),
       ),
@@ -1698,81 +2249,157 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
         children: <Widget>[
           Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: const Color(0xFFE6E8EE)),
+            padding: const EdgeInsets.all(18),
+            decoration: elevatedSurface(
+              radius: 28,
+              color: const Color(0xFF16345C),
+              border: const Color(0xFF214977),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: selectedServices.map((service) {
-                final isCore = service.id == widget.service.id;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: Row(
+            child: Row(
+              children: <Widget>[
+                imageOrPlaceholder(
+                  widget.service.imageUrl,
+                  width: 88,
+                  height: 88,
+                  borderRadius: const BorderRadius.all(Radius.circular(18)),
+                  fallbackIcon: Icons.home_repair_service_outlined,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              service.name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                              ),
-                            ),
-                            if (isCore)
-                              const Text(
-                                'Primary service',
-                                style: TextStyle(
-                                  color: Color(0xFF6B707A),
-                                  fontSize: 12,
-                                ),
-                              ),
-                          ],
+                      const Text(
+                        'CHECKOUT',
+                        style: TextStyle(
+                          color: Color(0xFFFFD2A1),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.7,
                         ),
                       ),
-                      if (!isCore)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF0E4FF),
-                            borderRadius: BorderRadius.circular(999),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.provider.fullName.isEmpty
+                            ? widget.provider.username
+                            : widget.provider.fullName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.service.name,
+                        style: const TextStyle(
+                          color: Color(0xFFD5E3F8),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: <Widget>[
+                          _summaryBadge(
+                            Icons.star_rounded,
+                            '${widget.provider.rating.toStringAsFixed(1)} rated',
                           ),
-                          child: Row(
+                          _summaryBadge(
+                            Icons.schedule_outlined,
+                            prettyStatus(_timeSlot),
+                          ),
+                          _summaryBadge(
+                            Icons.payments_outlined,
+                            _formatPrice(total),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: elevatedSurface(radius: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                  'Your services',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Review what will be included in this visit.',
+                  style: TextStyle(color: UiTone.softText, height: 1.35),
+                ),
+                const SizedBox(height: 14),
+                ...selectedServices.map((service) {
+                  final isCore = service.id == widget.service.id;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isCore
+                          ? const Color(0xFFF7F1E7)
+                          : UiTone.surfaceMuted,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              IconButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _selectedServiceIds.remove(service.id);
-                                  });
-                                },
-                                icon: const Icon(Icons.remove, size: 16),
-                                visualDensity: VisualDensity.compact,
+                              Text(
+                                service.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                ),
                               ),
-                              const Text('1'),
-                              IconButton(
-                                onPressed: null,
-                                icon: const Icon(Icons.add, size: 16),
-                                visualDensity: VisualDensity.compact,
+                              const SizedBox(height: 4),
+                              Text(
+                                isCore
+                                    ? 'Included as your primary service'
+                                    : 'Added to this visit',
+                                style: const TextStyle(
+                                  color: UiTone.softText,
+                                  fontSize: 12.5,
+                                ),
                               ),
                             ],
                           ),
                         ),
-                      const SizedBox(width: 12),
-                      Text(
-                        _formatPrice(_servicePrice(service)),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
+                        if (!isCore)
+                          IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _selectedServiceIds.remove(service.id);
+                              });
+                            },
+                            icon: const Icon(Icons.close_rounded),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _formatPrice(_servicePrice(service)),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
+                      ],
+                    ),
+                  );
+                }),
+              ],
             ),
           ),
           const SizedBox(height: 18),
@@ -1796,17 +2423,18 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
           ],
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: const Color(0xFFE6E8EE)),
-            ),
+            decoration: elevatedSurface(radius: 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 const Text(
-                  'Service preferences',
+                  'Preferences',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Set a few simple visit preferences before you confirm.',
+                  style: TextStyle(color: UiTone.softText, height: 1.35),
                 ),
                 CheckboxListTile(
                   value: _avoidCalls,
@@ -1833,7 +2461,7 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
                   secondary: const Text(
                     '7 offers',
                     style: TextStyle(
-                      color: Color(0xFF7B2CFF),
+                      color: UiTone.secondary,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -1845,45 +2473,18 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
           const SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: const Color(0xFFE6E8EE)),
-            ),
+            decoration: elevatedSurface(radius: 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 const Text(
-                  'Address and schedule',
+                  'Schedule and address',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _addressController,
-                  maxLines: 2,
-                  decoration: const InputDecoration(labelText: 'Address'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _locationController,
-                  decoration: const InputDecoration(
-                    labelText: 'Customer location (optional)',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _landmarkController,
-                  decoration: const InputDecoration(
-                    labelText: 'Landmark (optional)',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _notesController,
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'Notes (optional)',
-                  ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Choose when the visit should happen and where the professional should arrive.',
+                  style: TextStyle(color: UiTone.softText, height: 1.35),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -1943,17 +2544,41 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _addressController,
+                  maxLines: 2,
+                  decoration: const InputDecoration(labelText: 'Address'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _locationController,
+                  decoration: const InputDecoration(
+                    labelText: 'Customer location (optional)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _landmarkController,
+                  decoration: const InputDecoration(
+                    labelText: 'Landmark (optional)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _notesController,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Notes (optional)',
+                  ),
+                ),
               ],
             ),
           ),
           const SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: const Color(0xFFE6E8EE)),
-            ),
+            decoration: elevatedSurface(radius: 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -1961,9 +2586,14 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
                   'Payment summary',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                 ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Your total stays transparent before you confirm.',
+                  style: TextStyle(color: UiTone.softText, height: 1.35),
+                ),
                 const SizedBox(height: 14),
                 _summaryRow('Item total', _formatPrice(subtotal)),
-                _summaryRow('Taxes and fee', _formatPrice(fees)),
+                _summaryRow('Taxes and fees', _formatPrice(fees)),
                 const Divider(height: 20),
                 _summaryRow('Total', _formatPrice(total), strong: true),
               ],
@@ -1992,6 +2622,25 @@ class CustomerBookingsTab extends StatefulWidget {
 class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
   bool _loading = true;
   List<BookingItem> _bookings = <BookingItem>[];
+
+  Widget _statusPill(String status) {
+    final color = statusColor(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        prettyStatus(status),
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -2117,63 +2766,173 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
     if (_bookings.isEmpty) {
       return RefreshIndicator(
         onRefresh: _load,
-        child: ListView(children: <Widget>[emptyView('No bookings yet')]),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: <Widget>[
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: elevatedSurface(
+                radius: 28,
+                color: const Color(0xFF16345C),
+                border: const Color(0xFF214977),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Your bookings will feel organized here.',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      height: 1.1,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Once you place a service request, you can track progress, provider details, and post-service reviews from one place.',
+                    style: TextStyle(
+                      color: Color(0xFFD5E3F8),
+                      fontWeight: FontWeight.w500,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            emptyView('No bookings yet'),
+          ],
+        ),
       );
     }
 
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.builder(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         itemCount: _bookings.length,
         itemBuilder: (context, index) {
           final booking = _bookings[index];
-          return Card(
+          return Container(
+            margin: const EdgeInsets.only(bottom: 14),
+            decoration: elevatedSurface(radius: 26),
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Expanded(
-                        child: Text(
-                          '#${booking.id} ${booking.serviceLabel}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              booking.serviceLabel,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                                color: UiTone.ink,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Booking #${booking.id}',
+                              style: const TextStyle(
+                                color: UiTone.softText,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      Chip(
-                        label: Text(prettyStatus(booking.status)),
-                        backgroundColor: statusColor(
-                          booking.status,
-                        ).withValues(alpha: 0.15),
+                      _statusPill(booking.status),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      _bookingMeta(
+                        Icons.calendar_today_outlined,
+                        booking.scheduledDate,
+                      ),
+                      _bookingMeta(
+                        Icons.schedule_outlined,
+                        prettyStatus(booking.timeSlot),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Date: ${booking.scheduledDate}  •  ${prettyStatus(booking.timeSlot)}',
-                  ),
+                  const SizedBox(height: 12),
                   Text(
                     'Provider: ${booking.providerFullName.isEmpty ? booking.providerUsername : booking.providerFullName}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: UiTone.ink,
+                    ),
                   ),
                   const SizedBox(height: 6),
-                  Text('Address: ${booking.address}'),
-                  const SizedBox(height: 10),
+                  Text(
+                    booking.address,
+                    style: const TextStyle(
+                      color: UiTone.softText,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
                   if (booking.hasReview)
-                    Text(
-                      'Review: ${booking.reviewRating ?? '-'} / 5 • ${booking.reviewComment}',
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: UiTone.surfaceMuted,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Text(
+                        'Review: ${booking.reviewRating ?? '-'} / 5 • ${booking.reviewComment}',
+                        style: const TextStyle(
+                          color: UiTone.ink,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     )
                   else if (booking.status == 'COMPLETED')
-                    FilledButton.tonal(
+                    FilledButton.tonalIcon(
                       onPressed: () => _openReviewDialog(booking),
-                      child: const Text('Add Review'),
+                      icon: const Icon(Icons.reviews_outlined),
+                      label: const Text('Add Review'),
                     ),
                 ],
               ),
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _bookingMeta(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: UiTone.surfaceMuted,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 14, color: UiTone.primary),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: UiTone.ink,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2257,6 +3016,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: UiTone.shellBackground,
       appBar: AppBar(
         title: const Text('Notifications'),
         actions: <Widget>[
@@ -2272,25 +3032,89 @@ class _NotificationsTabState extends State<NotificationsTab> {
           : RefreshIndicator(
               onRefresh: _load,
               child: _items.isEmpty
-                  ? ListView(children: <Widget>[emptyView('No notifications')])
+                  ? ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: <Widget>[
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: elevatedSurface(
+                            radius: 28,
+                            color: const Color(0xFFFFF5E7),
+                            border: const Color(0xFFE6D5BE),
+                          ),
+                          child: const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                'Updates from your bookings appear here.',
+                                style: TextStyle(
+                                  color: UiTone.ink,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                'You will see provider confirmations, booking changes, and review reminders in one calm inbox.',
+                                style: TextStyle(
+                                  color: UiTone.softText,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        emptyView('No notifications'),
+                      ],
+                    )
                   : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
                       itemCount: _items.length,
                       itemBuilder: (context, index) {
                         final item = _items[index];
-                        return ListTile(
-                          leading: Icon(
-                            item.isRead
-                                ? Icons.notifications_none
-                                : Icons.notifications_active,
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: elevatedSurface(radius: 22),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            leading: Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                color: item.isRead
+                                    ? UiTone.surfaceMuted
+                                    : UiTone.primarySoft,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Icon(
+                                item.isRead
+                                    ? Icons.notifications_none
+                                    : Icons.notifications_active,
+                                color: item.isRead
+                                    ? UiTone.softText
+                                    : UiTone.primary,
+                              ),
+                            ),
+                            title: Text(
+                              item.message,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: UiTone.ink,
+                              ),
+                            ),
+                            subtitle: Text(item.createdAt),
+                            trailing: item.isRead
+                                ? null
+                                : TextButton(
+                                    onPressed: () => _markRead(item.id),
+                                    child: const Text('Mark read'),
+                                  ),
                           ),
-                          title: Text(item.message),
-                          subtitle: Text(item.createdAt),
-                          trailing: item.isRead
-                              ? null
-                              : TextButton(
-                                  onPressed: () => _markRead(item.id),
-                                  child: const Text('Mark read'),
-                                ),
                         );
                       },
                     ),
@@ -2439,90 +3263,137 @@ class _AccountTabState extends State<AccountTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: UiTone.shellBackground,
       appBar: AppBar(title: const Text('Account')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  const Text(
-                    'Profile',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: elevatedSurface(
+              radius: 28,
+              color: const Color(0xFF16345C),
+              border: const Color(0xFF214977),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                  'Your account',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
                   ),
-                  const SizedBox(height: 8),
-                  Text('Username: ${widget.profile.username}'),
-                  Text('Phone: ${widget.profile.phone}'),
-                  TextField(
-                    controller: _fullNameController,
-                    decoration: const InputDecoration(labelText: 'Full Name'),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  widget.profile.fullName.isEmpty
+                      ? widget.profile.username
+                      : widget.profile.fullName,
+                  style: const TextStyle(
+                    color: Color(0xFFD5E3F8),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _emailController,
-                    decoration: const InputDecoration(labelText: 'Email'),
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: _updatingProfile ? null : _updateProfile,
-                    child: Text(
-                      _updatingProfile ? 'Saving...' : 'Update Profile',
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    _accountChip(
+                      Icons.alternate_email_rounded,
+                      widget.profile.username,
                     ),
-                  ),
-                ],
-              ),
+                    _accountChip(
+                      Icons.call_outlined,
+                      widget.profile.phone.isEmpty
+                          ? 'No phone'
+                          : widget.profile.phone,
+                    ),
+                    _accountChip(
+                      Icons.verified_user_outlined,
+                      widget.profile.role,
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  const Text(
-                    'Change Password',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _currentPasswordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Current Password',
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _newPasswordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'New Password',
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _confirmPasswordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Confirm Password',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton.tonal(
-                    onPressed: _changingPassword ? null : _changePassword,
-                    child: Text(
-                      _changingPassword ? 'Updating...' : 'Change Password',
-                    ),
-                  ),
-                ],
-              ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: elevatedSurface(radius: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                  'Profile details',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _fullNameController,
+                  decoration: const InputDecoration(labelText: 'Full Name'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _emailController,
+                  decoration: const InputDecoration(labelText: 'Email'),
+                ),
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: _updatingProfile ? null : _updateProfile,
+                  child: Text(_updatingProfile ? 'Saving...' : 'Save Changes'),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: elevatedSurface(radius: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text(
+                  'Security',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _currentPasswordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Current Password',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _newPasswordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'New Password'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _confirmPasswordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Confirm Password',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.tonal(
+                  onPressed: _changingPassword ? null : _changePassword,
+                  child: Text(
+                    _changingPassword ? 'Updating...' : 'Update Password',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: () async {
               final confirmed = await confirmDialog(
@@ -2536,6 +3407,30 @@ class _AccountTabState extends State<AccountTab> {
             },
             icon: const Icon(Icons.logout),
             label: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _accountChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 14, color: const Color(0xFFFFE2C7)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),

@@ -53,7 +53,10 @@ class _ProviderShellState extends State<ProviderShell> {
     ];
 
     return Scaffold(
-      body: SafeArea(child: tabs[_index]),
+      body: ColoredBox(
+        color: UiTone.shellBackground,
+        child: SafeArea(child: tabs[_index]),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (value) {
@@ -205,11 +208,7 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
     return Container(
       width: 134,
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: UiTone.surfaceBorder),
-      ),
+      decoration: elevatedSurface(radius: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -242,50 +241,107 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
   }
 
   Widget _bookingCard(BookingItem booking) {
-    return Card(
+    return Container(
+      decoration: elevatedSurface(radius: 24),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        booking.serviceLabel,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                          color: UiTone.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Booking #${booking.id}',
+                        style: const TextStyle(
+                          color: UiTone.softText,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor(booking.status).withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                   child: Text(
-                    '#${booking.id} ${booking.serviceLabel}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15,
+                    prettyStatus(booking.status),
+                    style: TextStyle(
+                      color: statusColor(booking.status),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
                     ),
                   ),
                 ),
-                Chip(
-                  label: Text(prettyStatus(booking.status)),
-                  backgroundColor: statusColor(
-                    booking.status,
-                  ).withValues(alpha: 0.16),
-                ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Customer: ${booking.customerUsername}',
-              style: const TextStyle(fontWeight: FontWeight.w600),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                _metaPill(Icons.person_outline, booking.customerUsername),
+                _metaPill(Icons.calendar_today_outlined, booking.scheduledDate),
+                _metaPill(Icons.schedule_outlined, prettyStatus(booking.timeSlot)),
+              ],
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 12),
             Text(
-              'Date: ${booking.scheduledDate} | ${prettyStatus(booking.timeSlot)}',
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Address: ${booking.address}',
+              booking.address,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: UiTone.softText,
+                height: 1.35,
+              ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
             _actionButtons(booking),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _metaPill(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: UiTone.surfaceMuted,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 14, color: UiTone.primary),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: const TextStyle(
+              color: UiTone.ink,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -308,33 +364,49 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
           SliverToBoxAdapter(
             child: Container(
               margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: <Color>[Color(0xFF0F3F89), Color(0xFF1960C4)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(22),
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+              decoration: elevatedSurface(
+                color: const Color(0xFF16345C),
+                radius: 28,
+                border: const Color(0xFF214977),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   const Text(
-                    'Provider Workspace',
+                    'Provider command center',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 21,
+                      fontSize: 24,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
-                    '$total active bookings in your pipeline',
+                    '$total jobs flowing through your pipeline right now',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.92),
+                      color: Colors.white.withValues(alpha: 0.9),
                       fontWeight: FontWeight.w500,
                     ),
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: const <Widget>[
+                      _ProviderHeroPill(
+                        icon: Icons.bolt_rounded,
+                        label: 'Fast actions',
+                      ),
+                      _ProviderHeroPill(
+                        icon: Icons.workspace_premium_outlined,
+                        label: 'Premium workflow',
+                      ),
+                      _ProviderHeroPill(
+                        icon: Icons.task_alt_outlined,
+                        label: 'Clear status tracking',
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -604,22 +676,22 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
           SliverToBoxAdapter(
             child: Container(
               margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: UiTone.surfaceBorder),
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+              decoration: elevatedSurface(
+                radius: 28,
+                color: const Color(0xFFFFF5E7),
+                border: const Color(0xFFE6D5BE),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   const Text(
-                    'My Service Catalog',
-                    style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
+                    'Your service catalog',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
-                    '${_myServices.length} active services configured for your profile',
+                    '${_myServices.length} active services configured for your provider profile',
                     style: const TextStyle(color: UiTone.softText),
                   ),
                 ],
@@ -629,15 +701,19 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Card(
+              child: Container(
+                decoration: elevatedSurface(radius: 24),
                 child: Padding(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
                       const Text(
-                        'Add service',
-                        style: TextStyle(fontWeight: FontWeight.w700),
+                        'Add a new service',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<int>(
@@ -660,7 +736,7 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
                       const SizedBox(height: 10),
                       FilledButton.tonal(
                         onPressed: selectable.isEmpty ? null : _addService,
-                        child: const Text('Add to my catalog'),
+                        child: const Text('Add to catalog'),
                       ),
                     ],
                   ),
@@ -700,16 +776,17 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
                   );
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 10),
-                    child: Card(
+                    child: Container(
+                      decoration: elevatedSurface(radius: 24),
                       child: Padding(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(14),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
                             imageOrPlaceholder(
                               serviceItem?.imageUrl ?? '',
-                              width: 74,
-                              height: 74,
+                              width: 78,
+                              height: 78,
                               fallbackIcon: Icons.handyman_outlined,
                             ),
                             const SizedBox(width: 12),
@@ -720,7 +797,8 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
                                   Text(
                                     service.name,
                                     style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 16,
                                     ),
                                   ),
                                   const SizedBox(height: 8),
@@ -759,6 +837,38 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
                 onPressed: _myServices.isEmpty ? null : _savePrices,
                 child: const Text('Save Prices'),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderHeroPill extends StatelessWidget {
+  const _ProviderHeroPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 14, color: const Color(0xFFFFE2C7)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],

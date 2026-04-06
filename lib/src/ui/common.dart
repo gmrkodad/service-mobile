@@ -3,9 +3,36 @@ import 'package:flutter/material.dart';
 import '../api.dart';
 
 class UiTone {
-  static const Color shellBackground = Color(0xFFF4F7FD);
-  static const Color surfaceBorder = Color(0xFFDCE5F5);
-  static const Color softText = Color(0xFF5A6C8F);
+  static const Color shellBackground = Color(0xFFF5F4EE);
+  static const Color shellAccent = Color(0xFFF0E6D7);
+  static const Color surface = Color(0xFFFFFCF7);
+  static const Color surfaceMuted = Color(0xFFF4EEE4);
+  static const Color surfaceBorder = Color(0xFFE0D5C4);
+  static const Color ink = Color(0xFF1E2430);
+  static const Color softText = Color(0xFF6E6A63);
+  static const Color primary = Color(0xFF123B6D);
+  static const Color primarySoft = Color(0xFFDCEBFF);
+  static const Color secondary = Color(0xFFC86A3B);
+  static const Color success = Color(0xFF1F7A5C);
+}
+
+BoxDecoration elevatedSurface({
+  Color color = UiTone.surface,
+  double radius = 24,
+  Color border = UiTone.surfaceBorder,
+}) {
+  return BoxDecoration(
+    color: color,
+    borderRadius: BorderRadius.circular(radius),
+    border: Border.all(color: border),
+    boxShadow: const <BoxShadow>[
+      BoxShadow(
+        color: Color(0x140F172A),
+        blurRadius: 28,
+        offset: Offset(0, 16),
+      ),
+    ],
+  );
 }
 
 void showApiError(BuildContext context, Object error) {
@@ -25,7 +52,7 @@ Widget loadingView([String message = 'Loading...']) {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          const SizedBox(
+          SizedBox(
             width: 20,
             height: 20,
             child: CircularProgressIndicator(strokeWidth: 2.4),
@@ -108,7 +135,7 @@ Widget sectionTitle(
             ],
           ),
         ),
-        if (trailing != null) trailing,
+        ?trailing,
       ],
     ),
   );

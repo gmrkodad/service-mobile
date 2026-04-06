@@ -21,13 +21,13 @@ class _ServiceAppState extends State<ServiceApp> {
   UserProfile? _profile;
 
   ThemeData _buildTheme() {
-    const background = Color(0xFFF4F7FD);
-    const surface = Color(0xFFFFFFFF);
-    const primary = Color(0xFF0E4BA8);
+    const background = Color(0xFFF5F4EE);
+    const surface = Color(0xFFFFFCF7);
+    const primary = Color(0xFF123B6D);
     const onPrimary = Colors.white;
-    const secondary = Color(0xFF0E8A78);
+    const secondary = Color(0xFFC86A3B);
     const onSecondary = Colors.white;
-    const textPrimary = Color(0xFF14203A);
+    const textPrimary = Color(0xFF1E2430);
 
     const colorScheme = ColorScheme.light(
       primary: primary,
@@ -50,14 +50,16 @@ class _ServiceAppState extends State<ServiceApp> {
       scaffoldBackgroundColor: background,
       textTheme: base.textTheme.copyWith(
         headlineLarge: const TextStyle(
-          fontSize: 30,
+          fontSize: 32,
           fontWeight: FontWeight.w800,
           color: textPrimary,
+          letterSpacing: -0.8,
         ),
         headlineMedium: const TextStyle(
           fontSize: 24,
           fontWeight: FontWeight.w800,
           color: textPrimary,
+          letterSpacing: -0.4,
         ),
         titleLarge: const TextStyle(
           fontSize: 20,
@@ -72,12 +74,12 @@ class _ServiceAppState extends State<ServiceApp> {
         bodyLarge: const TextStyle(
           fontSize: 15,
           fontWeight: FontWeight.w500,
-          color: Color(0xFF2A3C63),
+          color: Color(0xFF404754),
         ),
         bodyMedium: const TextStyle(
           fontSize: 13.5,
           fontWeight: FontWeight.w500,
-          color: Color(0xFF44557A),
+          color: Color(0xFF6E6A63),
         ),
         labelLarge: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
       ),
@@ -94,20 +96,20 @@ class _ServiceAppState extends State<ServiceApp> {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: const Color(0xFFFCFDFF),
+        backgroundColor: const Color(0xFFFFFCF7),
         surfaceTintColor: Colors.transparent,
-        elevation: 10,
-        indicatorColor: const Color(0xFFE1EBFF),
+        elevation: 14,
+        indicatorColor: const Color(0xFFE8F0FB),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return IconThemeData(
-            color: selected ? primary : const Color(0xFF5E7094),
+            color: selected ? primary : const Color(0xFF817B72),
           );
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return TextStyle(
-            color: selected ? primary : const Color(0xFF5E7094),
+            color: selected ? primary : const Color(0xFF817B72),
             fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
           );
         }),
@@ -119,63 +121,66 @@ class _ServiceAppState extends State<ServiceApp> {
         surfaceTintColor: Colors.transparent,
         shadowColor: const Color(0x14071933),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Color(0xFFD8E2F4)),
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: Color(0xFFE0D5C4)),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 50),
+          minimumSize: const Size(0, 54),
+          backgroundColor: primary,
+          foregroundColor: onPrimary,
           textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(18),
           ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(0, 50),
+          minimumSize: const Size(0, 54),
+          foregroundColor: primary,
           textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-          side: const BorderSide(color: Color(0xFFB6C5E3)),
+          side: const BorderSide(color: Color(0xFFD3C4B1)),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(18),
           ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFFF8FAFF),
+        fillColor: const Color(0xFFFFF8EE),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 14,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFCBD7EE)),
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: Color(0xFFE0D5C4)),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFCBD7EE)),
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: Color(0xFFE0D5C4)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(18),
           borderSide: const BorderSide(color: primary, width: 1.6),
         ),
         labelStyle: const TextStyle(
-          color: Color(0xFF3E4F72),
+          color: Color(0xFF5F5B54),
           fontWeight: FontWeight.w600,
         ),
-        hintStyle: const TextStyle(color: Color(0xFF6E7D9B)),
+        hintStyle: const TextStyle(color: Color(0xFF948E84)),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: const Color(0xFFF5F8FF),
-        selectedColor: const Color(0xFFE7EEFF),
+        backgroundColor: const Color(0xFFF6EFE4),
+        selectedColor: const Color(0xFFDDEBFF),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: Color(0xFFD0DBF2)),
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFFE0D5C4)),
         ),
         labelStyle: const TextStyle(
-          color: Color(0xFF22365D),
+          color: Color(0xFF39404C),
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -186,12 +191,12 @@ class _ServiceAppState extends State<ServiceApp> {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: const Color(0xFF172A50),
+        backgroundColor: const Color(0xFF1E2430),
         contentTextStyle: const TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.w600,
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
   }
