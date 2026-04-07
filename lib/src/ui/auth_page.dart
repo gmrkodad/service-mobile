@@ -345,9 +345,9 @@ class _AuthPageState extends State<AuthPage>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: <Color>[
-              Color(0xFFF7F2E8),
-              Color(0xFFF3ECE0),
-              Color(0xFFEAE4D8),
+              Color(0xFFF8FAFC),
+              Color(0xFFF2F6FF),
+              Color(0xFFEEF4FF),
             ],
           ),
         ),
@@ -358,7 +358,7 @@ class _AuthPageState extends State<AuthPage>
               right: -80,
               child: _bgBlob(
                 size: 300,
-                color: const Color(0xFFC86A3B).withValues(alpha: 0.16),
+                color: UiTone.secondary.withValues(alpha: 0.16),
               ),
             ),
             Positioned(
@@ -366,7 +366,7 @@ class _AuthPageState extends State<AuthPage>
               top: 110,
               child: _bgBlob(
                 size: 220,
-                color: const Color(0xFF123B6D).withValues(alpha: 0.11),
+                color: UiTone.primary.withValues(alpha: 0.11),
               ),
             ),
             Positioned(
@@ -374,7 +374,7 @@ class _AuthPageState extends State<AuthPage>
               bottom: -110,
               child: _bgBlob(
                 size: 280,
-                color: const Color(0xFF5B8EE8).withValues(alpha: 0.11),
+                color: UiTone.secondary.withValues(alpha: 0.10),
               ),
             ),
             SafeArea(
@@ -392,17 +392,17 @@ class _AuthPageState extends State<AuthPage>
                         Container(
                           padding: const EdgeInsets.all(6),
                           decoration: elevatedSurface(
-                            color: Colors.white.withValues(alpha: 0.72),
-                            radius: 24,
-                            border: Colors.white.withValues(alpha: 0.7),
+                            color: Colors.white.withValues(alpha: 0.9),
+                            radius: 20,
+                            border: UiTone.surfaceBorder,
                           ),
                           child: TabBar(
                             controller: _tabController,
                             indicatorSize: TabBarIndicatorSize.tab,
                             dividerColor: Colors.transparent,
                             indicator: BoxDecoration(
-                              color: const Color(0xFF16345C),
-                              borderRadius: BorderRadius.circular(18),
+                              color: UiTone.primary,
+                              borderRadius: BorderRadius.circular(14),
                               boxShadow: const <BoxShadow>[
                                 BoxShadow(
                                   color: Color(0x220F172A),
@@ -412,7 +412,7 @@ class _AuthPageState extends State<AuthPage>
                               ],
                             ),
                             labelColor: Colors.white,
-                            unselectedLabelColor: const Color(0xFF605C55),
+                            unselectedLabelColor: UiTone.softText,
                             tabs: const <Widget>[
                               Tab(text: 'Login'),
                               Tab(text: 'Sign Up'),
@@ -445,9 +445,9 @@ class _AuthPageState extends State<AuthPage>
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: elevatedSurface(
-        color: const Color(0xFF132A4A),
-        radius: 34,
-        border: const Color(0xFF1D4168),
+        color: const Color(0xFF16355F),
+        radius: 28,
+        border: const Color(0xFF2B4E7B),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -519,8 +519,8 @@ class _AuthPageState extends State<AuthPage>
             padding: const EdgeInsets.all(18),
             decoration: elevatedSurface(
               color: Colors.white.withValues(alpha: 0.08),
-              radius: 28,
-              border: Colors.white.withValues(alpha: 0.09),
+              radius: 20,
+              border: Colors.white.withValues(alpha: 0.14),
             ),
             child: const Row(
               children: <Widget>[
@@ -602,9 +602,9 @@ class _AuthPageState extends State<AuthPage>
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF7F1E7),
+                    color: UiTone.surfaceMuted,
                     borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: const Color(0xFFE5D8C5)),
+                    border: Border.all(color: UiTone.surfaceBorder),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -786,9 +786,9 @@ class _AuthPageState extends State<AuthPage>
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF7F1E7),
+                      color: UiTone.surfaceMuted,
                       borderRadius: BorderRadius.circular(22),
-                      border: Border.all(color: const Color(0xFFE5D8C5)),
+                      border: Border.all(color: UiTone.surfaceBorder),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -965,8 +965,8 @@ class _AuthPageState extends State<AuthPage>
         padding: const EdgeInsets.all(14),
         decoration: elevatedSurface(
           radius: 22,
-          color: selected ? const Color(0xFFF0E1D0) : const Color(0xFFFFFBF6),
-          border: selected ? UiTone.secondary : const Color(0xFFE6DAC8),
+          color: selected ? UiTone.primarySoft : UiTone.surface,
+          border: selected ? UiTone.primary : UiTone.surfaceBorder,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1011,9 +1011,9 @@ class _AuthPageState extends State<AuthPage>
   }) {
     return Container(
       decoration: elevatedSurface(
-        color: Colors.white.withValues(alpha: 0.92),
-        radius: 30,
-        border: const Color(0xFFE6DAC8),
+        color: Colors.white,
+        radius: 22,
+        border: UiTone.surfaceBorder,
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -1073,7 +1073,7 @@ class _AuthPageState extends State<AuthPage>
       labelText: label,
       hintText: hint,
       prefixIcon: icon == null ? null : Icon(icon),
-      prefixIconColor: const Color(0xFF7C756D),
+      prefixIconColor: UiTone.softText,
     );
   }
 }

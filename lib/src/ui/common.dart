@@ -3,17 +3,17 @@ import 'package:flutter/material.dart';
 import '../api.dart';
 
 class UiTone {
-  static const Color shellBackground = Color(0xFFF5F4EE);
-  static const Color shellAccent = Color(0xFFF0E6D7);
-  static const Color surface = Color(0xFFFFFCF7);
-  static const Color surfaceMuted = Color(0xFFF4EEE4);
-  static const Color surfaceBorder = Color(0xFFE0D5C4);
-  static const Color ink = Color(0xFF1E2430);
-  static const Color softText = Color(0xFF6E6A63);
-  static const Color primary = Color(0xFF123B6D);
-  static const Color primarySoft = Color(0xFFDCEBFF);
-  static const Color secondary = Color(0xFFC86A3B);
-  static const Color success = Color(0xFF1F7A5C);
+  static const Color shellBackground = Color(0xFFF6F7FB);
+  static const Color shellAccent = Color(0xFFEEF4FF);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color surfaceMuted = Color(0xFFF9FAFB);
+  static const Color surfaceBorder = Color(0xFFE4E7EC);
+  static const Color ink = Color(0xFF101828);
+  static const Color softText = Color(0xFF475467);
+  static const Color primary = Color(0xFF1E4E8C);
+  static const Color primarySoft = Color(0xFFEAF2FF);
+  static const Color secondary = Color(0xFF2E90FA);
+  static const Color success = Color(0xFF079455);
 }
 
 BoxDecoration elevatedSurface({
@@ -27,11 +27,19 @@ BoxDecoration elevatedSurface({
     border: Border.all(color: border),
     boxShadow: const <BoxShadow>[
       BoxShadow(
-        color: Color(0x140F172A),
-        blurRadius: 28,
-        offset: Offset(0, 16),
+        color: Color(0x120F172A),
+        blurRadius: 20,
+        offset: Offset(0, 10),
       ),
     ],
+  );
+}
+
+BoxDecoration mutedSurface({double radius = 20}) {
+  return BoxDecoration(
+    color: UiTone.surfaceMuted,
+    borderRadius: BorderRadius.circular(radius),
+    border: Border.all(color: UiTone.surfaceBorder),
   );
 }
 
@@ -71,11 +79,7 @@ Widget emptyView(String message) {
       padding: const EdgeInsets.all(20),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: UiTone.surfaceBorder),
-        ),
+        decoration: mutedSurface(radius: 18),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
@@ -103,7 +107,7 @@ Widget sectionTitle(
   String title, {
   String? subtitle,
   Widget? trailing,
-  EdgeInsetsGeometry padding = const EdgeInsets.fromLTRB(16, 6, 16, 8),
+  EdgeInsetsGeometry padding = const EdgeInsets.fromLTRB(16, 8, 16, 10),
 }) {
   return Padding(
     padding: padding,
@@ -119,6 +123,7 @@ Widget sectionTitle(
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
+                  color: UiTone.ink,
                 ),
               ),
               if (subtitle != null) ...<Widget>[
