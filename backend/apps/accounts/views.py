@@ -279,4 +279,3 @@ class AdminProviderServicePricesView(APIView):
                 service_id=row.get("service_id"),
             ).update(price=row.get("price", 0))
         return Response({"message": "Provider prices updated"})
-

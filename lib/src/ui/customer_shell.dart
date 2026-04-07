@@ -949,7 +949,7 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
 
   Widget _buildSpotlightStrip(List<_HomeSpotlight> spotlight) {
     return SizedBox(
-      height: 222,
+      height: 244,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1492,10 +1492,10 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
                 ),
                 Text(
                   subtitle,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11.5,
                     color: Color(0xFF676B73),
                   ),
                 ),
@@ -1657,6 +1657,14 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.category.services.isEmpty) {
+      return Scaffold(
+        backgroundColor: UiTone.shellBackground,
+        appBar: AppBar(title: Text(widget.category.name)),
+        body: emptyView('No services available in this category yet'),
+      );
+    }
+
     final selected = _selectedService ?? widget.category.services.first;
     final selectedPrice = selected.startsFrom ?? selected.basePrice;
 
@@ -1681,7 +1689,7 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
               border: const Color(0xFF1D4168),
             ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Expanded(
                   child: Padding(
@@ -1727,7 +1735,7 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
                         ),
                         _benefitRow('Top-rated professionals'),
                         _benefitRow('Transparent pricing and quick slots'),
-                        const Spacer(),
+                        const SizedBox(height: 10),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -1955,6 +1963,7 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
 
   bool _loadingServices = true;
   bool _submitting = false;
+  bool _detectingAddress = false;
   List<ServiceItem> _providerServices = <ServiceItem>[];
   final Set<int> _selectedServiceIds = <int>{};
 
@@ -2051,6 +2060,88 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
       if (mounted) {
         setState(() {
           _submitting = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _useCurrentAddress() async {
+    setState(() {
+      _detectingAddress = true;
+    });
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw const ApiException('Location services are turned off');
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied) {
+        throw const ApiException('Location permission was denied');
+      }
+      if (permission == LocationPermission.deniedForever) {
+        throw const ApiException(
+          'Location permission is permanently denied. Enable it in system settings.',
+        );
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+      final places = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+      final place = places.isEmpty ? null : places.first;
+
+      final addressParts = <String>[
+        place?.name ?? '',
+        place?.thoroughfare ?? '',
+        place?.subLocality ?? '',
+        place?.locality ?? '',
+        place?.administrativeArea ?? '',
+        place?.postalCode ?? '',
+      ].where((value) => value.trim().isNotEmpty).toList();
+
+      final address = addressParts.join(', ');
+      final cityState = <String>[
+        place?.locality ?? '',
+        place?.administrativeArea ?? '',
+      ].where((value) => value.trim().isNotEmpty).join(', ');
+      final location =
+          '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}'
+          '${cityState.isEmpty ? '' : ' ($cityState)'}';
+      final landmark = (place?.subLocality ?? place?.locality ?? '').trim();
+
+      if (address.isEmpty) {
+        throw const ApiException(
+          'Could not resolve address from your location',
+        );
+      }
+
+      _addressController.text = address;
+      _locationController.text = location;
+      if (landmark.isNotEmpty) {
+        _landmarkController.text = landmark;
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Current location added to booking')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      showApiError(context, error);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _detectingAddress = false;
         });
       }
     }
@@ -2543,6 +2634,27 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _detectingAddress || _submitting
+                        ? null
+                        : _useCurrentAddress,
+                    icon: _detectingAddress
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.my_location_outlined),
+                    label: Text(
+                      _detectingAddress
+                          ? 'Detecting current location...'
+                          : 'Use current location',
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(

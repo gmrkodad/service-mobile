@@ -170,7 +170,7 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
   }
 
   Widget _actionButtons(BookingItem booking) {
-    if (booking.status == 'PENDING') {
+    if (booking.status == 'PENDING' || booking.status == 'ASSIGNED') {
       return Row(
         children: <Widget>[
           Expanded(
@@ -189,7 +189,7 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
         ],
       );
     }
-    if (booking.status == 'CONFIRMED') {
+    if (booking.status == 'ACCEPTED' || booking.status == 'CONFIRMED') {
       return FilledButton(
         onPressed: () => _providerStatus(booking.id, 'IN_PROGRESS'),
         child: const Text('Start Job'),
@@ -301,7 +301,10 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
               children: <Widget>[
                 _metaPill(Icons.person_outline, booking.customerUsername),
                 _metaPill(Icons.calendar_today_outlined, booking.scheduledDate),
-                _metaPill(Icons.schedule_outlined, prettyStatus(booking.timeSlot)),
+                _metaPill(
+                  Icons.schedule_outlined,
+                  prettyStatus(booking.timeSlot),
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -309,10 +312,7 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
               booking.address,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: UiTone.softText,
-                height: 1.35,
-              ),
+              style: const TextStyle(color: UiTone.softText, height: 1.35),
             ),
             const SizedBox(height: 14),
             _actionButtons(booking),
@@ -349,8 +349,12 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
   @override
   Widget build(BuildContext context) {
     final total = _bookings.length;
-    final pending = _bookings.where((e) => e.status == 'PENDING').length;
-    final confirmed = _bookings.where((e) => e.status == 'CONFIRMED').length;
+    final pending = _bookings
+        .where((e) => e.status == 'PENDING' || e.status == 'ASSIGNED')
+        .length;
+    final confirmed = _bookings
+        .where((e) => e.status == 'ACCEPTED' || e.status == 'CONFIRMED')
+        .length;
     final inProgress = _bookings.where((e) => e.status == 'IN_PROGRESS').length;
     final completed = _bookings.where((e) => e.status == 'COMPLETED').length;
 

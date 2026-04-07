@@ -220,6 +220,8 @@ Color statusColor(String status) {
       return Colors.lightBlue;
     case 'CONFIRMED':
       return Colors.green;
+    case 'ACCEPTED':
+      return Colors.green;
     case 'IN_PROGRESS':
       return Colors.indigo;
     case 'COMPLETED':
