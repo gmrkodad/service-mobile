@@ -1,5 +1,11 @@
+import uuid
+
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.contrib.auth import get_user_model
 from django.db.models import Avg
+from rest_framework import status
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -119,3 +125,26 @@ class AdminServiceDetailView(APIView):
         Service.objects.filter(id=service_id).delete()
         return Response(status=204)
 
+
+class AdminUploadIconView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminRole]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        uploaded = request.FILES.get("file")
+        if uploaded is None:
+            return Response(
+                {"detail": "No file uploaded. Use form field 'file'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not uploaded.content_type or not uploaded.content_type.startswith("image/"):
+            return Response(
+                {"detail": "Only image files are allowed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        extension = uploaded.name.rsplit(".", 1)[-1].lower() if "." in uploaded.name else "png"
+        filename = f"service_icons/{uuid.uuid4().hex}.{extension}"
+        saved_path = default_storage.save(filename, ContentFile(uploaded.read()))
+        image_url = request.build_absolute_uri(default_storage.url(saved_path))
+        return Response({"image_url": image_url}, status=status.HTTP_201_CREATED)

@@ -28,20 +28,49 @@ class ProviderShell extends StatefulWidget {
 class _ProviderShellState extends State<ProviderShell> {
   int _index = 0;
 
+  void _openDashboardBookings() {
+    setState(() {
+      _index = 0;
+    });
+  }
+
+  void _openDashboardHome() {
+    setState(() {
+      _index = 0;
+    });
+  }
+
+  void _openAlertsTab() {
+    setState(() {
+      _index = 2;
+    });
+  }
+
+  void _openProfileTab() {
+    setState(() {
+      _index = 3;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final tabs = <Widget>[
       ProviderDashboardTab(
         api: widget.api,
+        profile: widget.profile,
         onSessionExpired: widget.onSessionExpired,
+        onOpenAlerts: _openAlertsTab,
+        onOpenProfile: _openProfileTab,
       ),
       ProviderServicesTab(
         api: widget.api,
         onSessionExpired: widget.onSessionExpired,
+        onBack: _openDashboardHome,
       ),
       NotificationsTab(
         api: widget.api,
         onSessionExpired: widget.onSessionExpired,
+        onBack: _openDashboardHome,
       ),
       AccountTab(
         api: widget.api,
@@ -49,6 +78,8 @@ class _ProviderShellState extends State<ProviderShell> {
         onRefreshProfile: widget.onRefreshProfile,
         onLogout: widget.onLogout,
         onSessionExpired: widget.onSessionExpired,
+        onOpenBookings: _openDashboardBookings,
+        onBack: _openDashboardHome,
       ),
     ];
 
@@ -58,7 +89,7 @@ class _ProviderShellState extends State<ProviderShell> {
         child: SafeArea(child: tabs[_index]),
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
+        selectedIndex: _index > 1 ? 0 : _index,
         onDestinationSelected: (value) {
           setState(() {
             _index = value;
@@ -75,16 +106,6 @@ class _ProviderShellState extends State<ProviderShell> {
             selectedIcon: Icon(Icons.build),
             label: 'Services',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.notifications_outlined),
-            selectedIcon: Icon(Icons.notifications),
-            label: 'Alerts',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Account',
-          ),
         ],
       ),
     );
@@ -95,11 +116,17 @@ class ProviderDashboardTab extends StatefulWidget {
   const ProviderDashboardTab({
     super.key,
     required this.api,
+    required this.profile,
     required this.onSessionExpired,
+    required this.onOpenAlerts,
+    required this.onOpenProfile,
   });
 
   final ApiService api;
+  final UserProfile profile;
   final VoidCallback onSessionExpired;
+  final VoidCallback onOpenAlerts;
+  final VoidCallback onOpenProfile;
 
   @override
   State<ProviderDashboardTab> createState() => _ProviderDashboardTabState();
@@ -108,6 +135,53 @@ class ProviderDashboardTab extends StatefulWidget {
 class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
   bool _loading = true;
   List<BookingItem> _bookings = <BookingItem>[];
+  Map<String, double> _priceByServiceName = <String, double>{};
+
+  String _serviceKey(String name) => name.trim().toLowerCase();
+
+  double _amountFor(BookingItem booking) {
+    final names = booking.serviceNames.isNotEmpty
+        ? booking.serviceNames
+        : <String>[booking.serviceName];
+    var total = 0.0;
+    var matchedAny = false;
+    for (final raw in names) {
+      final matched = _priceByServiceName[_serviceKey(raw)];
+      if (matched != null && matched > 0) {
+        total += matched;
+        matchedAny = true;
+      } else {
+        total += 25;
+      }
+    }
+    if (!matchedAny && names.length > 1) {
+      total = names.length * 25;
+    }
+    return total + 2.52;
+  }
+
+  double _earningForBooking(BookingItem booking) {
+    final names = booking.serviceNames.isNotEmpty
+        ? booking.serviceNames
+        : <String>[booking.serviceName];
+    var total = 0.0;
+    for (final raw in names) {
+      final matched = _priceByServiceName[_serviceKey(raw)];
+      total += matched != null && matched > 0 ? matched : 25;
+    }
+    return total;
+  }
+
+  Future<void> _openBookingSummary(BookingItem booking) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BookingSummaryPage(
+          booking: booking,
+          amountPaid: _amountFor(booking),
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -120,10 +194,20 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
       _loading = true;
     });
     try {
-      final bookings = await widget.api.fetchProviderDashboardBookings();
+      final results = await Future.wait<dynamic>([
+        widget.api.fetchProviderDashboardBookings(),
+        widget.api.fetchProviderMyServicePrices(),
+      ]);
+      final bookings = results[0] as List<BookingItem>;
+      final prices = results[1] as List<ProviderServicePrice>;
+      final map = <String, double>{};
+      for (final row in prices) {
+        map[_serviceKey(row.serviceName)] = row.price;
+      }
       if (!mounted) return;
       setState(() {
         _bookings = bookings;
+        _priceByServiceName = map;
       });
     } catch (error) {
       if (error is ApiException && error.statusCode == 401) {
@@ -154,10 +238,52 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
   }
 
   Future<void> _providerStatus(int bookingId, String status) async {
+    String? otp;
+    if (status == 'IN_PROGRESS' || status == 'COMPLETED') {
+      final controller = TextEditingController();
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: Text(
+              status == 'IN_PROGRESS' ? 'Enter Start OTP' : 'Enter End OTP',
+            ),
+            content: TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              decoration: const InputDecoration(
+                labelText: '4-digit OTP',
+                counterText: '',
+              ),
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Verify'),
+              ),
+            ],
+          );
+        },
+      );
+      otp = controller.text.trim();
+      controller.dispose();
+      if (confirmed != true) return;
+      if (otp.length != 4) {
+        if (!mounted) return;
+        showApiError(context, const ApiException('Enter valid 4-digit OTP'));
+        return;
+      }
+    }
     try {
       await widget.api.providerUpdateStatus(
         bookingId: bookingId,
         status: status,
+        otp: otp,
       );
       await _load();
     } catch (error) {
@@ -170,7 +296,7 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
   }
 
   Widget _actionButtons(BookingItem booking) {
-    if (booking.status == 'PENDING' || booking.status == 'ASSIGNED') {
+    if (booking.status == 'PENDING') {
       return Row(
         children: <Widget>[
           Expanded(
@@ -189,6 +315,12 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
         ],
       );
     }
+    if (booking.status == 'ASSIGNED') {
+      return FilledButton(
+        onPressed: () => _providerStatus(booking.id, 'IN_PROGRESS'),
+        child: const Text('Start Job'),
+      );
+    }
     if (booking.status == 'ACCEPTED' || booking.status == 'CONFIRMED') {
       return FilledButton(
         onPressed: () => _providerStatus(booking.id, 'IN_PROGRESS'),
@@ -204,11 +336,11 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
     return const SizedBox.shrink();
   }
 
-  Widget _statCard(String label, int value, IconData icon, Color color) {
+  Widget _statCard(String label, String value, IconData icon, Color color) {
     return Container(
       width: 134,
       padding: const EdgeInsets.all(12),
-      decoration: elevatedSurface(radius: 20),
+      decoration: elevatedSurface(radius: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -221,19 +353,21 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
             ),
             child: Icon(icon, size: 18, color: color),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               fontSize: 12,
               color: UiTone.softText,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 1),
           Text(
-            value.toString(),
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+            value,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
           ),
         ],
       ),
@@ -241,82 +375,111 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
   }
 
   Widget _bookingCard(BookingItem booking) {
-    return Container(
-      decoration: elevatedSurface(radius: 24),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        booking.serviceLabel,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 18,
-                          color: UiTone.ink,
+    return InkWell(
+      onTap: () => _openBookingSummary(booking),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        decoration: elevatedSurface(radius: 20),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          booking.serviceLabel,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                            color: UiTone.ink,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Booking #${booking.id}',
-                        style: const TextStyle(
-                          color: UiTone.softText,
-                          fontWeight: FontWeight.w600,
+                        const SizedBox(height: 4),
+                        Text(
+                          'Booking #${booking.id}',
+                          style: const TextStyle(
+                            color: UiTone.softText,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor(
+                        booking.status,
+                      ).withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      prettyStatus(booking.status),
+                      style: TextStyle(
+                        color: statusColor(booking.status),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  _metaPill(Icons.person_outline, booking.customerUsername),
+                  _metaPill(
+                    Icons.calendar_today_outlined,
+                    booking.scheduledDate,
+                  ),
+                  _metaPill(
+                    Icons.schedule_outlined,
+                    prettyStatus(booking.timeSlot),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                booking.address,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: UiTone.softText, height: 1.35),
+              ),
+              const SizedBox(height: 14),
+              if (booking.status == 'COMPLETED') ...<Widget>[
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
-                    vertical: 7,
+                    vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: statusColor(booking.status).withValues(alpha: 0.14),
+                    color: const Color(0xFFE8F8F0),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    prettyStatus(booking.status),
-                    style: TextStyle(
-                      color: statusColor(booking.status),
+                    'Earnings: ₹${_earningForBooking(booking).toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      color: Color(0xFF0D7C66),
                       fontWeight: FontWeight.w700,
-                      fontSize: 12,
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
               ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
-                _metaPill(Icons.person_outline, booking.customerUsername),
-                _metaPill(Icons.calendar_today_outlined, booking.scheduledDate),
-                _metaPill(
-                  Icons.schedule_outlined,
-                  prettyStatus(booking.timeSlot),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              booking.address,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: UiTone.softText, height: 1.35),
-            ),
-            const SizedBox(height: 14),
-            _actionButtons(booking),
-          ],
+              _actionButtons(booking),
+            ],
+          ),
         ),
       ),
     );
@@ -338,12 +501,18 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
             text,
             style: const TextStyle(
               color: UiTone.ink,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
       ),
     );
+  }
+
+  String _providerLocationLabel() {
+    final city = widget.profile.city.trim();
+    if (city.isNotEmpty) return city;
+    return 'Location not set';
   }
 
   @override
@@ -357,6 +526,9 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
         .length;
     final inProgress = _bookings.where((e) => e.status == 'IN_PROGRESS').length;
     final completed = _bookings.where((e) => e.status == 'COMPLETED').length;
+    final totalEarnings = _bookings
+        .where((e) => e.status == 'COMPLETED')
+        .fold<double>(0, (sum, booking) => sum + _earningForBooking(booking));
 
     if (_loading) return loadingView();
 
@@ -370,19 +542,77 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
               margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
               decoration: elevatedSurface(
-                color: const Color(0xFF16345C),
-                radius: 28,
-                border: const Color(0xFF214977),
+                color: const Color(0xFF0F3D32),
+                radius: 24,
+                border: const Color(0xFF1A5E4A),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  const Text(
-                    'Provider command center',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
+                  Row(
+                    children: <Widget>[
+                      const Expanded(
+                        child: Text(
+                          'Provider command center',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: widget.onOpenAlerts,
+                        tooltip: 'Alerts',
+                        icon: const Icon(
+                          Icons.notifications_outlined,
+                          color: Colors.white,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: widget.onOpenProfile,
+                        tooltip: 'Profile',
+                        icon: const Icon(
+                          Icons.account_circle_outlined,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.22),
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: 18,
+                          color: Colors.white.withValues(alpha: 0.96),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _providerLocationLabel(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.96),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -390,7 +620,15 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
                     '$total jobs flowing through your pipeline right now',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.9),
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Total earnings: ₹${totalEarnings.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      color: Color(0xFFA8E6CF),
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -424,38 +662,45 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
                 children: <Widget>[
                   _statCard(
+                    'Earnings',
+                    '₹${totalEarnings.toStringAsFixed(0)}',
+                    Icons.currency_rupee_rounded,
+                    const Color(0xFF0D7C66),
+                  ),
+                  const SizedBox(width: 10),
+                  _statCard(
                     'Total',
-                    total,
+                    '$total',
                     Icons.dashboard_rounded,
-                    const Color(0xFF345CE4),
+                    const Color(0xFF0D7C66),
                   ),
                   const SizedBox(width: 10),
                   _statCard(
                     'Pending',
-                    pending,
+                    '$pending',
                     Icons.pending_actions_rounded,
-                    const Color(0xFFF08A24),
+                    const Color(0xFFF59E0B),
                   ),
                   const SizedBox(width: 10),
                   _statCard(
                     'Confirmed',
-                    confirmed,
+                    '$confirmed',
                     Icons.verified_rounded,
-                    const Color(0xFF0F8A77),
+                    const Color(0xFF0EA5E9),
                   ),
                   const SizedBox(width: 10),
                   _statCard(
                     'In Progress',
-                    inProgress,
+                    '$inProgress',
                     Icons.handyman_rounded,
-                    const Color(0xFF6A4FE8),
+                    const Color(0xFF8B5CF6),
                   ),
                   const SizedBox(width: 10),
                   _statCard(
                     'Completed',
-                    completed,
+                    '$completed',
                     Icons.task_alt_rounded,
-                    const Color(0xFF0A8D60),
+                    const Color(0xFF059669),
                   ),
                 ],
               ),
@@ -474,13 +719,13 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
             )
           else
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 22),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate((context, index) {
                   final booking = _bookings[index];
                   return Padding(
                     padding: EdgeInsets.only(
-                      bottom: index == _bookings.length - 1 ? 0 : 10,
+                      bottom: index == _bookings.length - 1 ? 0 : 12,
                     ),
                     child: _bookingCard(booking),
                   );
@@ -498,10 +743,12 @@ class ProviderServicesTab extends StatefulWidget {
     super.key,
     required this.api,
     required this.onSessionExpired,
+    this.onBack,
   });
 
   final ApiService api;
   final VoidCallback onSessionExpired;
+  final VoidCallback? onBack;
 
   @override
   State<ProviderServicesTab> createState() => _ProviderServicesTabState();
@@ -512,6 +759,9 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
   List<ServiceCategory> _categories = <ServiceCategory>[];
   List<BasicService> _myServices = <BasicService>[];
   List<ProviderServicePrice> _prices = <ProviderServicePrice>[];
+  final TextEditingController _serviceSearchController =
+      TextEditingController();
+  String _serviceSearchQuery = '';
 
   final Map<int, TextEditingController> _priceControllers =
       <int, TextEditingController>{};
@@ -525,6 +775,7 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
 
   @override
   void dispose() {
+    _serviceSearchController.dispose();
     for (final controller in _priceControllers.values) {
       controller.dispose();
     }
@@ -667,9 +918,19 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
 
   @override
   Widget build(BuildContext context) {
-    final selectable = _allServices
+    final selectableBase = _allServices
         .where((s) => !_myServices.any((m) => m.id == s.id))
         .toList();
+    final normalizedQuery = _serviceSearchQuery.trim().toLowerCase();
+    final selectable = normalizedQuery.isEmpty
+        ? selectableBase
+        : selectableBase
+              .where((s) => s.name.toLowerCase().contains(normalizedQuery))
+              .toList();
+    final selectedServiceValue =
+        selectable.any((service) => service.id == _selectedServiceToAdd)
+        ? _selectedServiceToAdd
+        : (selectable.isEmpty ? null : selectable.first.id);
     if (_loading) return loadingView();
 
     return RefreshIndicator(
@@ -678,20 +939,33 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: <Widget>[
           SliverToBoxAdapter(
+            child: sectionTitle(
+              'Provider Services',
+              subtitle: 'Manage your catalog and pricing',
+              leading: widget.onBack == null
+                  ? null
+                  : IconButton(
+                      onPressed: widget.onBack,
+                      icon: const Icon(Icons.arrow_back),
+                      tooltip: 'Back',
+                    ),
+            ),
+          ),
+          SliverToBoxAdapter(
             child: Container(
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
               decoration: elevatedSurface(
-                radius: 28,
-                color: const Color(0xFFFFF5E7),
-                border: const Color(0xFFE6D5BE),
+                radius: 24,
+                color: UiTone.primarySoft,
+                border: UiTone.surfaceBorder,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   const Text(
                     'Your service catalog',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 6),
                   Text(
@@ -706,7 +980,7 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Container(
-                decoration: elevatedSurface(radius: 24),
+                decoration: elevatedSurface(radius: 20),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -715,18 +989,51 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
                       const Text(
                         'Add a new service',
                         style: TextStyle(
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700,
                           fontSize: 18,
                         ),
                       ),
                       const SizedBox(height: 8),
+                      TextField(
+                        controller: _serviceSearchController,
+                        onChanged: (value) {
+                          setState(() {
+                            _serviceSearchQuery = value;
+                          });
+                        },
+                        decoration: InputDecoration(
+                          labelText: 'Search service',
+                          prefixIcon: const Icon(Icons.search_rounded),
+                          suffixIcon: _serviceSearchQuery.isEmpty
+                              ? null
+                              : IconButton(
+                                  onPressed: () {
+                                    _serviceSearchController.clear();
+                                    setState(() {
+                                      _serviceSearchQuery = '';
+                                    });
+                                  },
+                                  icon: const Icon(Icons.close_rounded),
+                                  tooltip: 'Clear search',
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       DropdownButtonFormField<int>(
-                        initialValue: _selectedServiceToAdd,
+                        key: ValueKey<String>(
+                          'provider-service-${selectedServiceValue ?? -1}-${selectable.length}',
+                        ),
+                        initialValue: selectedServiceValue,
+                        isExpanded: true,
                         items: selectable
                             .map(
                               (service) => DropdownMenuItem<int>(
                                 value: service.id,
-                                child: Text(service.name),
+                                child: Text(
+                                  service.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             )
                             .toList(),
@@ -737,6 +1044,17 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
                         },
                         decoration: const InputDecoration(labelText: 'Service'),
                       ),
+                      if (selectable.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Text(
+                            'No matching services found',
+                            style: TextStyle(
+                              color: UiTone.softText,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 10),
                       FilledButton.tonal(
                         onPressed: selectable.isEmpty ? null : _addService,
@@ -781,7 +1099,7 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: Container(
-                      decoration: elevatedSurface(radius: 24),
+                      decoration: elevatedSurface(radius: 20),
                       child: Padding(
                         padding: const EdgeInsets.all(14),
                         child: Row(
@@ -801,9 +1119,11 @@ class _ProviderServicesTabState extends State<ProviderServicesTab> {
                                   Text(
                                     service.name,
                                     style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
+                                      fontWeight: FontWeight.w700,
                                       fontSize: 16,
                                     ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                   const SizedBox(height: 8),
                                   TextField(
@@ -866,13 +1186,13 @@ class _ProviderHeroPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, size: 14, color: const Color(0xFFFFE2C7)),
+          Icon(icon, size: 14, color: const Color(0xFFA8E6CF)),
           const SizedBox(width: 6),
           Text(
             label,
             style: const TextStyle(
               color: Colors.white,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],

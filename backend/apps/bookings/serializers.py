@@ -13,6 +13,8 @@ class BookingSerializer(serializers.ModelSerializer):
     has_review = serializers.SerializerMethodField()
     review_rating = serializers.SerializerMethodField()
     review_comment = serializers.SerializerMethodField()
+    item_total = serializers.SerializerMethodField()
+    total_amount = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -27,6 +29,10 @@ class BookingSerializer(serializers.ModelSerializer):
             "address",
             "scheduled_date",
             "time_slot",
+            "start_otp",
+            "end_otp",
+            "item_total",
+            "total_amount",
             "status",
             "has_review",
             "review_rating",
@@ -64,6 +70,21 @@ class BookingSerializer(serializers.ModelSerializer):
     def get_review_comment(self, obj):
         return obj.review.comment if hasattr(obj, "review") else ""
 
+    def _item_total(self, obj):
+        services = list(obj.services.all())
+        if not services and obj.service is not None:
+            services = [obj.service]
+        total = 0.0
+        for service in services:
+            total += float(service.base_price)
+        return round(total, 2)
+
+    def get_item_total(self, obj):
+        return self._item_total(obj)
+
+    def get_total_amount(self, obj):
+        return round(self._item_total(obj) + 2.52, 2)
+
 
 class AdminReviewSerializer(serializers.ModelSerializer):
     booking_id = serializers.IntegerField(source="booking.id")
@@ -89,4 +110,3 @@ class AdminReviewSerializer(serializers.ModelSerializer):
             return obj.booking.service.name
         first = obj.booking.services.order_by("name").first()
         return first.name if first else ""
-

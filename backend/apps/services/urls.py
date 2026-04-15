@@ -5,6 +5,7 @@ from .views import (
     AdminCategoryDetailView,
     AdminServicesView,
     AdminServiceDetailView,
+    AdminUploadIconView,
     CategoriesPrivateView,
     CategoriesPublicView,
     ProvidersByServiceView,
@@ -19,5 +20,5 @@ urlpatterns = [
     path("admin/categories/<int:category_id>/", AdminCategoryDetailView.as_view()),
     path("admin/services/", AdminServicesView.as_view()),
     path("admin/services/<int:service_id>/", AdminServiceDetailView.as_view()),
+    path("admin/upload-icon/", AdminUploadIconView.as_view()),
 ]
-

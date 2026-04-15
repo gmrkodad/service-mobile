@@ -1,17 +1,16 @@
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin
 
-from .models import Notification, OtpCode, User
+from .models import DeviceToken, Notification, OtpCode, SupportTicket, User
 
 
 @admin.register(User)
-class AppUserAdmin(UserAdmin):
-    fieldsets = UserAdmin.fieldsets + (
-        ("Service App", {"fields": ("role", "full_name", "phone", "city")}),
-    )
-    list_display = ("username", "email", "role", "is_active", "is_staff")
+class AppUserAdmin(admin.ModelAdmin):
+    list_display = ("id", "phone", "full_name", "email", "gender", "role", "is_active", "is_staff")
+    search_fields = ("phone", "full_name", "email")
+    list_filter = ("role", "gender", "is_active", "is_staff")
 
 
 admin.site.register(OtpCode)
 admin.site.register(Notification)
-
+admin.site.register(DeviceToken)
+admin.site.register(SupportTicket)

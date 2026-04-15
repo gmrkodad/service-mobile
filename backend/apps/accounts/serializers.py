@@ -1,35 +1,29 @@
-from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.services.models import ProviderServicePrice, Service
 
-from .models import Notification, User
+from .models import Notification, SupportTicket, User
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    username = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ["username", "role", "email", "phone", "full_name"]
+        fields = ["username", "role", "email", "phone", "full_name", "gender", "city"]
+
+    def get_username(self, obj):
+        return obj.username_label
 
 
 class SignupCustomerSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
-
     class Meta:
         model = User
-        fields = ["full_name", "username", "email", "password", "phone"]
-
-    def validate_password(self, value):
-        validate_password(value)
-        return value
+        fields = ["full_name", "email", "phone", "gender"]
 
     def create(self, validated_data):
-        password = validated_data.pop("password")
-        user = User(**validated_data, role=User.Roles.CUSTOMER)
-        user.set_password(password)
-        user.save()
-        return user
+        return User.objects.create_user(**validated_data, role=User.Roles.CUSTOMER)
 
 
 class SignupProviderSerializer(SignupCustomerSerializer):
@@ -41,10 +35,7 @@ class SignupProviderSerializer(SignupCustomerSerializer):
 
     def create(self, validated_data):
         service_ids = validated_data.pop("services", [])
-        password = validated_data.pop("password")
-        user = User(**validated_data, role=User.Roles.PROVIDER)
-        user.set_password(password)
-        user.save()
+        user = User.objects.create_user(**validated_data, role=User.Roles.PROVIDER)
         for service in Service.objects.filter(id__in=service_ids):
             ProviderServicePrice.objects.get_or_create(
                 provider=user,
@@ -58,6 +49,33 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = ["id", "message", "is_read", "created_at"]
+
+
+class SupportTicketSerializer(serializers.ModelSerializer):
+    booking_id = serializers.IntegerField(source="booking.id", allow_null=True)
+    booking_label = serializers.SerializerMethodField()
+    requester_username = serializers.CharField(source="requester.username", read_only=True)
+    requester_role = serializers.CharField(source="requester.role", read_only=True)
+
+    class Meta:
+        model = SupportTicket
+        fields = [
+            "id",
+            "issue_type",
+            "message",
+            "status",
+            "booking_id",
+            "booking_label",
+            "requester_username",
+            "requester_role",
+            "created_at",
+        ]
+
+    def get_booking_label(self, obj):
+        if obj.booking_id is None or obj.booking is None:
+            return ""
+        service_name = obj.booking.service.name if obj.booking.service_id else "Service"
+        return f"#{obj.booking_id} {service_name}"
 
 
 class BasicServiceSerializer(serializers.ModelSerializer):
@@ -77,6 +95,7 @@ class ProviderServicePriceSerializer(serializers.ModelSerializer):
 
 
 class AdminUserSerializer(serializers.ModelSerializer):
+    username = serializers.SerializerMethodField()
     provider_services = serializers.SerializerMethodField()
 
     class Meta:
@@ -96,6 +115,9 @@ class AdminUserSerializer(serializers.ModelSerializer):
     def get_provider_services(self, obj):
         services = Service.objects.filter(provider_prices__provider=obj).distinct().order_by("name")
         return BasicServiceSerializer(services, many=True).data
+
+    def get_username(self, obj):
+        return obj.username_label
 
 
 def token_pair_for_user(user: User) -> dict:

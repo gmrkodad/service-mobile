@@ -26,6 +26,14 @@
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
+	<key>NSLocationUsageDescription</key>
+	<string>We use your location to auto-detect your city and booking address.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We use your location to auto-detect your city and booking address.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Allow photo library access so admin can upload category and service icons.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Allow camera access to capture icon images for services and categories.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

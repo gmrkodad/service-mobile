@@ -5,6 +5,7 @@ class UserProfile {
     required this.email,
     required this.phone,
     required this.fullName,
+    required this.city,
   });
 
   final String username;
@@ -12,6 +13,7 @@ class UserProfile {
   final String email;
   final String phone;
   final String fullName;
+  final String city;
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
@@ -20,6 +22,7 @@ class UserProfile {
       email: _asString(json['email']),
       phone: _asString(json['phone']),
       fullName: _asString(json['full_name']),
+      city: _asString(json['city']),
     );
   }
 }
@@ -53,7 +56,9 @@ class ServiceItem {
       description: _asString(json['description']),
       imageUrl: _asString(json['image_url']),
       basePrice: _asDouble(json['base_price']),
-      startsFrom: json['starts_from'] == null ? null : _asDouble(json['starts_from']),
+      startsFrom: json['starts_from'] == null
+          ? null
+          : _asDouble(json['starts_from']),
       isActive: _asBool(json['is_active'], fallback: true),
     );
   }
@@ -140,6 +145,10 @@ class BookingItem {
     required this.address,
     required this.scheduledDate,
     required this.timeSlot,
+    required this.startOtp,
+    required this.endOtp,
+    required this.itemTotal,
+    required this.totalAmount,
     required this.status,
     required this.hasReview,
     required this.reviewRating,
@@ -156,6 +165,10 @@ class BookingItem {
   final String address;
   final String scheduledDate;
   final String timeSlot;
+  final String startOtp;
+  final String endOtp;
+  final double itemTotal;
+  final double totalAmount;
   final String status;
   final bool hasReview;
   final int? reviewRating;
@@ -177,14 +190,21 @@ class BookingItem {
       address: _asString(json['address']),
       scheduledDate: _asString(json['scheduled_date']),
       timeSlot: _asString(json['time_slot']),
+      startOtp: _asString(json['start_otp']),
+      endOtp: _asString(json['end_otp']),
+      itemTotal: _asDouble(json['item_total']),
+      totalAmount: _asDouble(json['total_amount']),
       status: _asString(json['status']),
       hasReview: _asBool(json['has_review']),
-      reviewRating: json['review_rating'] == null ? null : _asInt(json['review_rating']),
+      reviewRating: json['review_rating'] == null
+          ? null
+          : _asInt(json['review_rating']),
       reviewComment: _asString(json['review_comment']),
     );
   }
 
-  String get serviceLabel => serviceNames.isNotEmpty ? serviceNames.join(', ') : serviceName;
+  String get serviceLabel =>
+      serviceNames.isNotEmpty ? serviceNames.join(', ') : serviceName;
 }
 
 class AppNotification {
@@ -205,6 +225,45 @@ class AppNotification {
       id: _asInt(json['id']),
       message: _asString(json['message']),
       isRead: _asBool(json['is_read']),
+      createdAt: _asString(json['created_at']),
+    );
+  }
+}
+
+class SupportTicket {
+  const SupportTicket({
+    required this.id,
+    required this.issueType,
+    required this.message,
+    required this.status,
+    required this.bookingId,
+    required this.bookingLabel,
+    required this.requesterUsername,
+    required this.requesterRole,
+    required this.createdAt,
+  });
+
+  final int id;
+  final String issueType;
+  final String message;
+  final String status;
+  final int? bookingId;
+  final String bookingLabel;
+  final String requesterUsername;
+  final String requesterRole;
+  final String createdAt;
+
+  factory SupportTicket.fromJson(Map<String, dynamic> json) {
+    final bookingIdRaw = json['booking_id'];
+    return SupportTicket(
+      id: _asInt(json['id']),
+      issueType: _asString(json['issue_type']),
+      message: _asString(json['message']),
+      status: _asString(json['status']),
+      bookingId: bookingIdRaw == null ? null : _asInt(bookingIdRaw),
+      bookingLabel: _asString(json['booking_label']),
+      requesterUsername: _asString(json['requester_username']),
+      requesterRole: _asString(json['requester_role']),
       createdAt: _asString(json['created_at']),
     );
   }
@@ -257,10 +316,11 @@ class AdminUser {
   final List<BasicService> providerServices;
 
   factory AdminUser.fromJson(Map<String, dynamic> json) {
-    final services = (json['provider_services'] as List<dynamic>? ?? <dynamic>[])
-        .whereType<Map<String, dynamic>>()
-        .map(BasicService.fromJson)
-        .toList();
+    final services =
+        (json['provider_services'] as List<dynamic>? ?? <dynamic>[])
+            .whereType<Map<String, dynamic>>()
+            .map(BasicService.fromJson)
+            .toList();
 
     return AdminUser(
       id: _asInt(json['id']),
@@ -283,10 +343,7 @@ class BasicService {
   final String name;
 
   factory BasicService.fromJson(Map<String, dynamic> json) {
-    return BasicService(
-      id: _asInt(json['id']),
-      name: _asString(json['name']),
-    );
+    return BasicService(id: _asInt(json['id']), name: _asString(json['name']));
   }
 }
 

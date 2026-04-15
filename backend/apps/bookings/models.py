@@ -34,6 +34,8 @@ class Booking(models.Model):
     address = models.TextField()
     scheduled_date = models.DateField()
     time_slot = models.CharField(max_length=64)
+    start_otp = models.CharField(max_length=4, blank=True)
+    end_otp = models.CharField(max_length=4, blank=True)
     status = models.CharField(max_length=20, choices=Statuses.choices, default=Statuses.PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -59,4 +61,3 @@ class Review(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
-

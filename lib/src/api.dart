@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
@@ -20,6 +21,16 @@ class ReverseGeocodeResult {
 
   final String city;
   final String displayName;
+}
+
+class OtpVerifyResult {
+  const OtpVerifyResult({
+    required this.requiresProfile,
+    required this.isNewUser,
+  });
+
+  final bool requiresProfile;
+  final bool isNewUser;
 }
 
 class ApiService {
@@ -197,29 +208,6 @@ class ApiService {
     return true;
   }
 
-  Future<void> loginPassword({
-    required String username,
-    required String password,
-  }) async {
-    final body = await _request(
-      'POST',
-      '/api/token/',
-      body: {'username': username, 'password': password},
-    );
-
-    if (body is! Map<String, dynamic>) {
-      throw const ApiException('Invalid login response');
-    }
-
-    final access = body['access']?.toString();
-    final refresh = body['refresh']?.toString();
-    if (access == null || refresh == null) {
-      throw const ApiException('Login failed: token not returned');
-    }
-
-    await TokenStore.save(access: access, refresh: refresh);
-  }
-
   Future<void> sendLoginOtp(String phone) async {
     await _request(
       'POST',
@@ -228,18 +216,48 @@ class ApiService {
     );
   }
 
-  Future<void> verifyLoginOtp({
+  Future<OtpVerifyResult> verifyLoginOtp({
     required String phone,
     required String otp,
+    String? fullName,
+    String? email,
+    String? gender,
+    String? role,
+    String? city,
+    List<int>? services,
   }) async {
+    final payload = <String, dynamic>{'phone': phone, 'otp': otp};
+    if (fullName != null && fullName.trim().isNotEmpty) {
+      payload['full_name'] = fullName.trim();
+    }
+    if (email != null && email.trim().isNotEmpty) {
+      payload['email'] = email.trim();
+    }
+    if (gender != null && gender.trim().isNotEmpty) {
+      payload['gender'] = gender.trim().toUpperCase();
+    }
+    if (role != null && role.trim().isNotEmpty) {
+      payload['role'] = role.trim().toUpperCase();
+    }
+    if (city != null && city.trim().isNotEmpty) {
+      payload['city'] = city.trim();
+    }
+    if (services != null) {
+      payload['services'] = services;
+    }
     final body = await _request(
       'POST',
       '/api/accounts/auth/otp/verify/',
-      body: {'phone': phone, 'otp': otp},
+      body: payload,
     );
 
     if (body is! Map<String, dynamic>) {
       throw const ApiException('Invalid OTP response');
+    }
+
+    final requiresProfile = body['requires_profile'] == true;
+    if (requiresProfile) {
+      return const OtpVerifyResult(requiresProfile: true, isNewUser: true);
     }
 
     final access = body['access']?.toString();
@@ -249,64 +267,10 @@ class ApiService {
     }
 
     await TokenStore.save(access: access, refresh: refresh);
-  }
-
-  Future<void> sendSignupOtp(String phone) async {
-    await _request(
-      'POST',
-      '/api/accounts/auth/otp/send-signup/',
-      body: {'phone': phone},
+    return OtpVerifyResult(
+      requiresProfile: false,
+      isNewUser: body['is_new_user'] == true,
     );
-  }
-
-  Future<void> signupCustomer({
-    required String fullName,
-    required String username,
-    required String email,
-    required String password,
-    String? phone,
-    String? otp,
-  }) async {
-    final payload = <String, dynamic>{
-      'full_name': fullName,
-      'username': username,
-      'email': email,
-      'password': password,
-    };
-    if (phone != null && phone.trim().isNotEmpty) {
-      payload['phone'] = phone.trim();
-    }
-    if (otp != null && otp.trim().isNotEmpty) {
-      payload['otp'] = otp.trim();
-    }
-    await _request('POST', '/api/accounts/signup/customer/', body: payload);
-  }
-
-  Future<void> signupProvider({
-    required String fullName,
-    required String username,
-    required String email,
-    required String password,
-    String? phone,
-    String? otp,
-    required String city,
-    required List<int> services,
-  }) async {
-    final payload = <String, dynamic>{
-      'full_name': fullName,
-      'username': username,
-      'email': email,
-      'password': password,
-      'city': city,
-      'services': services,
-    };
-    if (phone != null && phone.trim().isNotEmpty) {
-      payload['phone'] = phone.trim();
-    }
-    if (otp != null && otp.trim().isNotEmpty) {
-      payload['otp'] = otp.trim();
-    }
-    await _request('POST', '/api/accounts/signup/provider/', body: payload);
   }
 
   Future<UserProfile> fetchProfile() async {
@@ -432,24 +396,27 @@ class ApiService {
 
   Future<int> createBooking({
     required int service,
-    required int provider,
+    int? provider,
     required String scheduledDate,
     required String timeSlot,
     required String address,
     required List<int> serviceIds,
   }) async {
+    final payload = <String, dynamic>{
+      'service': service,
+      'scheduled_date': scheduledDate,
+      'time_slot': timeSlot,
+      'address': address,
+      'service_ids': serviceIds,
+    };
+    if (provider != null) {
+      payload['provider'] = provider;
+    }
     final body = await _request(
       'POST',
       '/api/bookings/create/',
       auth: true,
-      body: {
-        'service': service,
-        'provider': provider,
-        'scheduled_date': scheduledDate,
-        'time_slot': timeSlot,
-        'address': address,
-        'service_ids': serviceIds,
-      },
+      body: payload,
     );
 
     if (body is! Map<String, dynamic>) {
@@ -505,6 +472,77 @@ class ApiService {
     await _request('POST', '/api/accounts/notifications/read-all/', auth: true);
   }
 
+  Future<void> registerDeviceToken({
+    required String token,
+    required String platform,
+  }) async {
+    await _request(
+      'POST',
+      '/api/accounts/notifications/device/register/',
+      auth: true,
+      body: {'token': token, 'platform': platform},
+    );
+  }
+
+  Future<void> unregisterDeviceToken({required String token}) async {
+    await _request(
+      'POST',
+      '/api/accounts/notifications/device/unregister/',
+      auth: true,
+      body: {'token': token},
+    );
+  }
+
+  Future<List<SupportTicket>> fetchSupportTickets() async {
+    final body = await _request(
+      'GET',
+      '/api/accounts/support/tickets/',
+      auth: true,
+    );
+    if (body is! List<dynamic>) return <SupportTicket>[];
+    return body
+        .whereType<Map<String, dynamic>>()
+        .map(SupportTicket.fromJson)
+        .toList();
+  }
+
+  Future<SupportTicket> createSupportTicket({
+    required String issueType,
+    required String message,
+    int? bookingId,
+  }) async {
+    final body = await _request(
+      'POST',
+      '/api/accounts/support/tickets/',
+      auth: true,
+      body: <String, dynamic>{
+        'issue_type': issueType,
+        'message': message,
+        'booking_id': bookingId,
+      },
+    );
+    if (body is! Map<String, dynamic>) {
+      throw const ApiException('Invalid support ticket response');
+    }
+    return SupportTicket.fromJson(body);
+  }
+
+  Future<SupportTicket> updateSupportTicketStatus({
+    required int ticketId,
+    required String status,
+  }) async {
+    final body = await _request(
+      'POST',
+      '/api/accounts/support/tickets/$ticketId/status/',
+      auth: true,
+      body: <String, dynamic>{'status': status},
+    );
+    if (body is! Map<String, dynamic>) {
+      throw const ApiException('Invalid support ticket response');
+    }
+    return SupportTicket.fromJson(body);
+  }
+
   Future<List<BookingItem>> fetchProviderDashboardBookings() async {
     final body = await _request(
       'GET',
@@ -533,12 +571,17 @@ class ApiService {
   Future<void> providerUpdateStatus({
     required int bookingId,
     required String status,
+    String? otp,
   }) async {
+    final payload = <String, dynamic>{'status': status};
+    if (otp != null && otp.trim().isNotEmpty) {
+      payload['otp'] = otp.trim();
+    }
     await _request(
       'POST',
       '/api/bookings/provider/update-status/$bookingId/',
       auth: true,
-      body: {'status': status},
+      body: payload,
     );
   }
 
@@ -642,6 +685,19 @@ class ApiService {
         .whereType<Map<String, dynamic>>()
         .map(AdminUser.fromJson)
         .toList();
+  }
+
+  Future<AdminUser> createAdminUser(Map<String, dynamic> payload) async {
+    final body = await _request(
+      'POST',
+      '/api/accounts/admin/users/',
+      auth: true,
+      body: payload,
+    );
+    if (body is! Map<String, dynamic>) {
+      throw const ApiException('Invalid user response');
+    }
+    return AdminUser.fromJson(body);
   }
 
   Future<void> toggleAdminUser(int userId) async {
@@ -774,6 +830,61 @@ class ApiService {
 
   Future<void> deleteAdminService(int id) async {
     await _request('DELETE', '/api/services/admin/services/$id/', auth: true);
+  }
+
+  Future<String> uploadAdminIcon(String filePath) async {
+    final session = await TokenStore.read();
+    if (session == null) {
+      throw const ApiException('You are not logged in', statusCode: 401);
+    }
+
+    final request = http.MultipartRequest(
+      'POST',
+      _uri('/api/services/admin/upload-icon/'),
+    );
+    request.headers['Accept'] = 'application/json';
+    request.headers['Authorization'] = 'Bearer ${session.access}';
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'file',
+        filePath,
+        filename: File(filePath).uri.pathSegments.last,
+      ),
+    );
+
+    http.Response response;
+    try {
+      response = await http.Response.fromStream(await _client.send(request));
+    } on http.ClientException catch (error) {
+      throw ApiException(
+        'Cannot connect to ${AppConfig.baseUrl}. Start Django server and check network access. (${error.message})',
+      );
+    } catch (error) {
+      throw ApiException(
+        'Network error while uploading icon to ${AppConfig.baseUrl}: $error',
+      );
+    }
+
+    final decoded = _decodeBody(response.body);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(
+        _extractErrorMessage(
+          decoded,
+          fallback: 'Upload failed (${response.statusCode})',
+        ),
+        statusCode: response.statusCode,
+      );
+    }
+    if (decoded is! Map<String, dynamic>) {
+      throw const ApiException('Invalid upload response');
+    }
+    final imageUrl = decoded['image_url']?.toString().trim() ?? '';
+    if (imageUrl.isEmpty) {
+      throw const ApiException(
+        'Upload succeeded but image URL was not returned',
+      );
+    }
+    return imageUrl;
   }
 
   Future<List<AdminReview>> fetchAdminReviews() async {
