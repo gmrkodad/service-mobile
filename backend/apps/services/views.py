@@ -22,6 +22,16 @@ from .serializers import (
 User = get_user_model()
 
 
+def _normalize_city(value: str) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    # Keep city part only if callers send "City, State".
+    raw = raw.split(",", 1)[0].strip()
+    # Collapse repeated whitespace and compare in lowercase.
+    return " ".join(raw.split()).lower()
+
+
 class CategoriesPublicView(APIView):
     permission_classes = [AllowAny]
 
@@ -38,14 +48,22 @@ class ProvidersByServiceView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, service_id: int):
-        city = request.query_params.get("city", "").strip()
-        prices = ProviderServicePrice.objects.filter(
+        requested_city = _normalize_city(request.query_params.get("city", ""))
+        fallback_city = _normalize_city(getattr(request.user, "city", ""))
+        city_key = requested_city or fallback_city
+
+        prices_qs = ProviderServicePrice.objects.filter(
             service_id=service_id,
             provider__role=User.Roles.PROVIDER,
             provider__is_active=True,
         ).select_related("provider")
-        if city:
-            prices = prices.filter(provider__city__iexact=city)
+
+        prices = list(prices_qs)
+        if city_key:
+            prices = [
+                row for row in prices if _normalize_city(getattr(row.provider, "city", "")) == city_key
+            ]
+
         provider_ids = [row.provider_id for row in prices]
         ratings = {
             row["provider_id"]: row["avg_rating"] or 0

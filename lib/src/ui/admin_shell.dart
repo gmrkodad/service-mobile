@@ -110,45 +110,45 @@ class _AdminShellState extends State<AdminShell> {
     final destinations = isSupport
         ? const <Widget>[
             NavigationDestination(
-              icon: Icon(Icons.support_agent_outlined),
-              selectedIcon: Icon(Icons.support_agent),
+              icon: Icon(Icons.support_agent_outlined, size: 24),
+              selectedIcon: Icon(Icons.support_agent_rounded, size: 24),
               label: 'Support',
             ),
             NavigationDestination(
-              icon: Icon(Icons.confirmation_number_outlined),
-              selectedIcon: Icon(Icons.confirmation_number),
+              icon: Icon(Icons.confirmation_number_outlined, size: 23),
+              selectedIcon: Icon(Icons.confirmation_number_rounded, size: 23),
               label: 'Tickets',
             ),
             NavigationDestination(
-              icon: Icon(Icons.assignment_outlined),
-              selectedIcon: Icon(Icons.assignment),
+              icon: Icon(Icons.assignment_outlined, size: 23),
+              selectedIcon: Icon(Icons.assignment_rounded, size: 23),
               label: 'Bookings',
             ),
           ]
         : const <Widget>[
             NavigationDestination(
-              icon: Icon(Icons.space_dashboard_outlined),
-              selectedIcon: Icon(Icons.space_dashboard),
+              icon: Icon(Icons.space_dashboard_outlined, size: 24),
+              selectedIcon: Icon(Icons.space_dashboard_rounded, size: 24),
               label: 'Overview',
             ),
             NavigationDestination(
-              icon: Icon(Icons.assignment_outlined),
-              selectedIcon: Icon(Icons.assignment),
+              icon: Icon(Icons.assignment_outlined, size: 23),
+              selectedIcon: Icon(Icons.assignment_rounded, size: 23),
               label: 'Bookings',
             ),
             NavigationDestination(
-              icon: Icon(Icons.people_outline),
-              selectedIcon: Icon(Icons.people),
+              icon: Icon(Icons.people_outline_rounded, size: 24),
+              selectedIcon: Icon(Icons.people_rounded, size: 24),
               label: 'Users',
             ),
             NavigationDestination(
-              icon: Icon(Icons.design_services_outlined),
-              selectedIcon: Icon(Icons.design_services),
+              icon: Icon(Icons.design_services_outlined, size: 23),
+              selectedIcon: Icon(Icons.design_services_rounded, size: 23),
               label: 'Services',
             ),
             NavigationDestination(
-              icon: Icon(Icons.reviews_outlined),
-              selectedIcon: Icon(Icons.reviews),
+              icon: Icon(Icons.reviews_outlined, size: 23),
+              selectedIcon: Icon(Icons.reviews_rounded, size: 23),
               label: 'Reviews',
             ),
           ];
@@ -524,7 +524,7 @@ class _SupportTicketsTabState extends State<SupportTicketsTab> {
                                     child: Text(
                                       '#${ticket.id} ${ticket.issueType}',
                                       style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                   ),
@@ -541,7 +541,7 @@ class _SupportTicketsTabState extends State<SupportTicketsTab> {
                                 'User: ${ticket.requesterUsername.isEmpty ? '-' : ticket.requesterUsername} (${ticket.requesterRole.isEmpty ? 'USER' : ticket.requesterRole})',
                                 style: const TextStyle(
                                   color: UiTone.softText,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w400,
                                 ),
                               ),
                               if (ticket.bookingLabel.trim().isNotEmpty)
@@ -549,7 +549,7 @@ class _SupportTicketsTabState extends State<SupportTicketsTab> {
                                   'Booking: ${ticket.bookingLabel}',
                                   style: const TextStyle(
                                     color: UiTone.softText,
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: FontWeight.w400,
                                   ),
                                 ),
                               const SizedBox(height: 8),
@@ -557,7 +557,7 @@ class _SupportTicketsTabState extends State<SupportTicketsTab> {
                                 ticket.message,
                                 style: const TextStyle(
                                   color: UiTone.ink,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w400,
                                   height: 1.3,
                                 ),
                               ),
@@ -569,7 +569,7 @@ class _SupportTicketsTabState extends State<SupportTicketsTab> {
                                     'Open ticket',
                                     style: TextStyle(
                                       color: UiTone.primary,
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                   SizedBox(width: 4),
@@ -686,7 +686,7 @@ class _SupportTicketDetailPageState extends State<_SupportTicketDetailPage> {
                       child: Text(
                         ticket.issueType,
                         style: const TextStyle(
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                           fontSize: 16,
                         ),
                       ),
@@ -699,7 +699,7 @@ class _SupportTicketDetailPageState extends State<_SupportTicketDetailPage> {
                   'Raised by: ${ticket.requesterUsername} (${ticket.requesterRole})',
                   style: const TextStyle(
                     color: UiTone.softText,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
                 if (ticket.bookingLabel.trim().isNotEmpty) ...<Widget>[
@@ -708,7 +708,7 @@ class _SupportTicketDetailPageState extends State<_SupportTicketDetailPage> {
                     'Linked booking: ${ticket.bookingLabel}',
                     style: const TextStyle(
                       color: UiTone.softText,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w400,
                     ),
                   ),
                 ],
@@ -717,7 +717,7 @@ class _SupportTicketDetailPageState extends State<_SupportTicketDetailPage> {
                   ticket.message,
                   style: const TextStyle(
                     color: UiTone.ink,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w400,
                     height: 1.35,
                   ),
                 ),
@@ -763,6 +763,10 @@ class _SupportTicketDetailPageState extends State<_SupportTicketDetailPage> {
                     builder: (_) => BookingSummaryPage(
                       booking: booking!,
                       amountPaid: _amountFor(booking!),
+                      supportApi: widget.api,
+                      onSessionExpired: widget.onSessionExpired,
+                      supportRole: 'ADMIN',
+                      preselectedBookingId: booking!.id,
                     ),
                   ),
                 );
@@ -1033,6 +1037,10 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
         builder: (_) => BookingSummaryPage(
           booking: booking,
           amountPaid: _amountFor(booking),
+          supportApi: widget.api,
+          onSessionExpired: widget.onSessionExpired,
+          supportRole: 'ADMIN',
+          preselectedBookingId: booking.id,
         ),
       ),
     );

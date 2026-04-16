@@ -91,14 +91,17 @@ class _CustomerShellState extends State<CustomerShell> {
       );
       return;
     }
+    final currentCity = (await TokenStore.readCity())?.trim() ?? '';
+    if (!mounted) return;
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => CreateBookingPage(
+      smoothPageRoute<void>(
+        CreateBookingPage(
           api: widget.api,
           service: draft.service,
           availableServices: draft.availableServices,
           preferredProviderId: draft.preferredProviderId,
           initialServiceIds: draft.selectedServiceIds,
+          currentCity: currentCity,
           onSessionExpired: widget.onSessionExpired,
         ),
       ),
@@ -129,15 +132,28 @@ class _CustomerShellState extends State<CustomerShell> {
     ];
 
     return Scaffold(
+      extendBody: true,
       body: ColoredBox(
         color: UiTone.shellBackground,
-        child: SafeArea(child: tabs[_index]),
+        child: SafeArea(
+          bottom: false,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            child: KeyedSubtree(
+              key: ValueKey<int>(_index),
+              child: tabs[_index],
+            ),
+          ),
+        ),
       ),
       floatingActionButton: _index == 0
           ? FloatingActionButton.extended(
               onPressed: _openCartFromHome,
               backgroundColor: const Color(0xFF10B766),
               foregroundColor: Colors.white,
+              elevation: 4,
               icon: const Icon(Icons.shopping_cart_checkout_rounded),
               label: Text(
                 _customerCartDraft == null
@@ -146,30 +162,48 @@ class _CustomerShellState extends State<CustomerShell> {
               ),
             )
           : null,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (value) {
-          setState(() {
-            _index = value;
-          });
-        },
-        destinations: const <Widget>[
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined, size: 24),
-            selectedIcon: Icon(Icons.home_rounded, size: 24),
-            label: 'Home',
+      bottomNavigationBar: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(
+              color: Color(0x0F1A2B23),
+              blurRadius: 20,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: NavigationBar(
+            selectedIndex: _index,
+            onDestinationSelected: (value) {
+              setState(() {
+                _index = value;
+              });
+            },
+            height: 64,
+            destinations: const <Widget>[
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined, size: 24),
+                selectedIcon: Icon(Icons.home_rounded, size: 24),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.grid_view_outlined, size: 23),
+                selectedIcon: Icon(Icons.grid_view_rounded, size: 23),
+                label: 'Services',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.calendar_today_outlined, size: 22),
+                selectedIcon: Icon(Icons.calendar_today_rounded, size: 22),
+                label: 'Bookings',
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.grid_view_outlined, size: 23),
-            selectedIcon: Icon(Icons.grid_view_rounded, size: 23),
-            label: 'Services',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.calendar_today_outlined, size: 22),
-            selectedIcon: Icon(Icons.calendar_today_rounded, size: 22),
-            label: 'Bookings',
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -266,8 +300,8 @@ class _CustomerServicesTabState extends State<CustomerServicesTab> {
 
   Future<void> _openCategory(ServiceCategory category) async {
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => CategoryDetailsPage(
+      smoothPageRoute<void>(
+        CategoryDetailsPage(
           api: widget.api,
           category: category,
           currentCity: _city,
@@ -282,8 +316,9 @@ class _CustomerServicesTabState extends State<CustomerServicesTab> {
     required ServiceItem service,
   }) {
     final price = service.startsFrom ?? service.basePrice;
-    return GestureDetector(
+    return InkWell(
       onTap: () => _openCategory(category),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: elevatedSurface(radius: 16),
         child: Column(
@@ -311,7 +346,7 @@ class _CustomerServicesTabState extends State<CustomerServicesTab> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                       color: UiTone.ink,
                     ),
                   ),
@@ -322,7 +357,7 @@ class _CustomerServicesTabState extends State<CustomerServicesTab> {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: UiTone.softText,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                       fontSize: 12,
                     ),
                   ),
@@ -354,14 +389,14 @@ class _CustomerServicesTabState extends State<CustomerServicesTab> {
           const SizedBox(height: 4),
           const Text(
             'All services',
-            style: TextStyle(fontSize: 28 / 2, fontWeight: FontWeight.w800),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
           Text(
             'Search and explore all services in your city',
             style: const TextStyle(
               color: UiTone.softText,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w400,
             ),
           ),
           const SizedBox(height: 12),
@@ -412,7 +447,7 @@ class _CustomerServicesTabState extends State<CustomerServicesTab> {
                   'No services found',
                   style: TextStyle(
                     color: UiTone.softText,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -668,8 +703,8 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
 
   Future<void> _openCategory(ServiceCategory category) async {
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => CategoryDetailsPage(
+      smoothPageRoute<void>(
+        CategoryDetailsPage(
           api: widget.api,
           category: category,
           currentCity: _normalizeCity(_cityController.text),
@@ -754,8 +789,9 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
         : service.basePrice;
     final oldPrice = service.basePrice > salePrice ? service.basePrice : null;
 
-    return GestureDetector(
+    return InkWell(
       onTap: () => _openCategory(category),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -927,8 +963,24 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
     final city = _normalizeCity(_cityController.text);
     final firstName = widget.profile.fullName.split(' ').first;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[Color(0xFF0D7C66), Color(0xFF14A38B)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x280D7C66),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
       child: Row(
         children: <Widget>[
           Expanded(
@@ -937,19 +989,19 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
               children: <Widget>[
                 Text(
                   '${_greeting()},',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: UiTone.softText,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.white.withValues(alpha: 0.8),
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   firstName.isEmpty ? 'there' : firstName,
                   style: const TextStyle(
-                    fontSize: 24,
+                    fontSize: 22,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF1A1F36),
+                    color: Colors.white,
                     letterSpacing: -0.5,
                   ),
                 ),
@@ -957,10 +1009,10 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                   const SizedBox(height: 4),
                   Row(
                     children: <Widget>[
-                      const Icon(
+                      Icon(
                         Icons.place_outlined,
                         size: 14,
-                        color: UiTone.primary,
+                        color: Colors.white.withValues(alpha: 0.75),
                       ),
                       const SizedBox(width: 4),
                       Flexible(
@@ -968,10 +1020,10 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                           city,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            color: UiTone.softText,
+                            color: Colors.white.withValues(alpha: 0.85),
                           ),
                         ),
                       ),
@@ -981,7 +1033,7 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           GestureDetector(
             onTap: _openNotifications,
             child: SizedBox(
@@ -994,14 +1046,14 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                     width: 42,
                     height: 42,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF0F2F5),
+                      color: Colors.white.withValues(alpha: 0.18),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Center(
                       child: Icon(
                         Icons.notifications_outlined,
                         size: 22,
-                        color: Color(0xFF3D4A5C),
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -1042,8 +1094,12 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: UiTone.primary,
+                color: Colors.white.withValues(alpha: 0.22),
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.35),
+                  width: 1.2,
+                ),
               ),
               child: Center(
                 child: Text(
@@ -1064,8 +1120,8 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
 
   Future<void> _openNotifications() async {
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => NotificationsTab(
+      smoothPageRoute<void>(
+        NotificationsTab(
           api: widget.api,
           onSessionExpired: widget.onSessionExpired,
         ),
@@ -1076,8 +1132,8 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
 
   Future<void> _openProfile() async {
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => AccountTab(
+      smoothPageRoute<void>(
+        AccountTab(
           api: widget.api,
           profile: widget.profile,
           onRefreshProfile: widget.onRefreshProfile,
@@ -1091,13 +1147,19 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         height: 50,
         decoration: BoxDecoration(
-          color: const Color(0xFFF0F2F5),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _homeBorder, width: 1.1),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(
+              color: Color(0x0A1A2B23),
+              blurRadius: 12,
+              offset: Offset(0, 3),
+            ),
+          ],
         ),
         child: TextField(
           controller: _searchController,
@@ -1118,7 +1180,7 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
               padding: EdgeInsets.only(left: 14, right: 10),
               child: Icon(
                 Icons.search_rounded,
-                color: Color(0xFF9CA3AF),
+                color: Color(0xFF0D7C66),
                 size: 22,
               ),
             ),
@@ -1356,7 +1418,7 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                     'InstaHelp',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 34 / 2,
+                      fontSize: 17,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -1365,7 +1427,7 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                     'Try at $promoPrice →',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 46 / 2,
+                      fontSize: 23,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.3,
                     ),
@@ -1616,8 +1678,9 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
         ),
         itemBuilder: (context, index) {
           final category = categories[index];
-          return GestureDetector(
+          return InkWell(
             onTap: () => _openCategory(category),
+            borderRadius: BorderRadius.circular(14),
             child: Container(
               padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
               decoration: BoxDecoration(
@@ -1671,8 +1734,9 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
         : null;
     final imageUrl = firstService?.imageUrl ?? firstCategory?.imageUrl ?? '';
 
-    return GestureDetector(
+    return InkWell(
       onTap: firstCategory == null ? null : () => _openCategory(firstCategory),
+      borderRadius: BorderRadius.circular(18),
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
         height: 162,
@@ -1697,7 +1761,7 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                       'InstaHelp',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 26 / 2,
+                        fontSize: 13,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -1718,7 +1782,7 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
                             ),
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 36 / 2,
+                        fontSize: 18,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -1771,8 +1835,9 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
         itemBuilder: (context, index) {
           final category = actions[index];
           final price = _lowestPrice(category);
-          return GestureDetector(
+          return InkWell(
             onTap: () => _openCategory(category),
+            borderRadius: BorderRadius.circular(20),
             child: Container(
               width: 240,
               decoration: BoxDecoration(
@@ -1866,8 +1931,9 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
         itemBuilder: (context, index) {
           final item = spotlight[index];
           final price = item.service.startsFrom ?? item.service.basePrice;
-          return GestureDetector(
+          return InkWell(
             onTap: () => _openCategory(item.category),
+            borderRadius: BorderRadius.circular(16),
             child: Container(
               width: 160,
               decoration: BoxDecoration(
@@ -1950,8 +2016,9 @@ class _CustomerHomeTabState extends State<CustomerHomeTab> {
         : category.description.trim();
     final price = _lowestPrice(category);
 
-    return GestureDetector(
+    return InkWell(
       onTap: () => _openCategory(category),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -2196,6 +2263,73 @@ class _ToneChip extends StatelessWidget {
   }
 }
 
+/// Hides booking OTP codes behind a tap-to-reveal interaction to prevent
+/// shoulder-surfing and accidental exposure in screenshots.
+class _OtpRevealRow extends StatefulWidget {
+  const _OtpRevealRow({required this.startOtp, required this.endOtp});
+
+  final String startOtp;
+  final String endOtp;
+
+  @override
+  State<_OtpRevealRow> createState() => _OtpRevealRowState();
+}
+
+class _OtpRevealRowState extends State<_OtpRevealRow> {
+  bool _revealed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.startOtp.isEmpty && widget.endOtp.isEmpty) {
+      return const Text(
+        'OTP not available yet',
+        style: TextStyle(color: Color(0xFF737B87), fontSize: 13),
+      );
+    }
+
+    if (!_revealed) {
+      return GestureDetector(
+        onTap: () => setState(() => _revealed = true),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE6F5F0),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(
+                Icons.visibility_outlined,
+                size: 16,
+                color: Color(0xFF0D7C66),
+              ),
+              SizedBox(width: 6),
+              Text(
+                'Tap to reveal OTPs',
+                style: TextStyle(
+                  color: Color(0xFF0D7C66),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Text(
+      'Start: ${widget.startOtp.isEmpty ? '-' : widget.startOtp}  •  End: ${widget.endOtp.isEmpty ? '-' : widget.endOtp}',
+      style: const TextStyle(
+        color: Color(0xFF0D7C66),
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+}
+
 class CategoryDetailsPage extends StatefulWidget {
   const CategoryDetailsPage({
     super.key,
@@ -2229,8 +2363,8 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
 
   Future<void> _openProviders(ServiceItem service) async {
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => ServiceProvidersPage(
+      smoothPageRoute<void>(
+        ServiceProvidersPage(
           api: widget.api,
           category: widget.category,
           service: service,
@@ -2505,12 +2639,13 @@ class _CategoryDetailsPageState extends State<CategoryDetailsPage> {
                 FilledButton.icon(
                   onPressed: () async {
                     await Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => CreateBookingPage(
+                      smoothPageRoute<void>(
+                        CreateBookingPage(
                           api: widget.api,
                           service: service,
                           availableServices: widget.category.services,
                           preferredProviderId: provider.id,
+                          currentCity: widget.currentCity,
                           onSessionExpired: widget.onSessionExpired,
                         ),
                       ),
@@ -2861,13 +2996,14 @@ class _ServiceProvidersPageState extends State<ServiceProvidersPage> {
         _providerServices[providerId] ?? widget.category.services;
     _syncCartDraft();
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => CreateBookingPage(
+      smoothPageRoute<void>(
+        CreateBookingPage(
           api: widget.api,
           service: widget.service,
           availableServices: providerCatalog,
           preferredProviderId: providerId,
           initialServiceIds: _selectedServiceIds.toList(),
+          currentCity: widget.currentCity,
           onSessionExpired: widget.onSessionExpired,
         ),
       ),
@@ -2897,14 +3033,12 @@ class _ServiceProvidersPageState extends State<ServiceProvidersPage> {
         ),
         child: Row(
           children: <Widget>[
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: const Color(0xFFDDF5E8),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.person_outline, color: Color(0xFF119962)),
+            iconBox(
+              Icons.person_rounded,
+              background: const Color(0xFFDDF5E8),
+              foreground: const Color(0xFF119962),
+              size: 44,
+              iconSize: 22,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -3014,6 +3148,10 @@ class _ServiceProvidersPageState extends State<ServiceProvidersPage> {
   @override
   Widget build(BuildContext context) {
     final selectedProviderId = _selectedProviderId;
+    final hasProviders = _providers.isNotEmpty;
+    final currentCity = widget.currentCity.trim().isEmpty
+        ? 'your city'
+        : widget.currentCity.trim().split(',').first.trim();
     ProviderItem? selectedProvider;
     for (final provider in _providers) {
       if (provider.id == selectedProviderId) {
@@ -3123,11 +3261,50 @@ class _ServiceProvidersPageState extends State<ServiceProvidersPage> {
                     child: Center(child: CircularProgressIndicator()),
                   )
                 else if (_providers.isEmpty)
-                  const Text(
-                    'No providers available for this service right now.',
-                    style: TextStyle(
-                      color: UiTone.softText,
-                      fontWeight: FontWeight.w600,
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF2F7F5),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFC8D8D0)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        iconBox(
+                          Icons.location_city_rounded,
+                          size: 42,
+                          iconSize: 20,
+                          background: const Color(0xFFE1F3EA),
+                          foreground: const Color(0xFF129160),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              const Text(
+                                'No providers found in your city',
+                                style: TextStyle(
+                                  color: UiTone.ink,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14.5,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Try changing city from Home location bar. Current city: $currentCity',
+                                style: const TextStyle(
+                                  color: UiTone.softText,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.25,
+                                  fontSize: 12.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   )
                 else
@@ -3135,57 +3312,59 @@ class _ServiceProvidersPageState extends State<ServiceProvidersPage> {
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: elevatedSurface(radius: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  providerName.isEmpty
-                      ? 'Other services by selected provider'
-                      : 'Other services by $providerName',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                if (selectedProviderId == null)
-                  const Text(
-                    'Select a provider to see their services.',
-                    style: TextStyle(
-                      color: UiTone.softText,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  )
-                else if (loadingSelectedProviderServices)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 10),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (selectedProviderServices.isEmpty)
-                  const Text(
-                    'No extra services available from this provider.',
-                    style: TextStyle(
-                      color: UiTone.softText,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  )
-                else
-                  SizedBox(
-                    height: 214,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: selectedProviderServices
-                          .map(_addonCard)
-                          .toList(),
+          if (hasProviders) ...<Widget>[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: elevatedSurface(radius: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    providerName.isEmpty
+                        ? 'Other services by selected provider'
+                        : 'Other services by $providerName',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-              ],
+                  const SizedBox(height: 10),
+                  if (selectedProviderId == null)
+                    const Text(
+                      'Select a provider to see their services.',
+                      style: TextStyle(
+                        color: UiTone.softText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
+                  else if (loadingSelectedProviderServices)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 10),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (selectedProviderServices.isEmpty)
+                    const Text(
+                      'No extra services available from this provider.',
+                      style: TextStyle(
+                        color: UiTone.softText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
+                  else
+                    SizedBox(
+                      height: 214,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: selectedProviderServices
+                            .map(_addonCard)
+                            .toList(),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -3200,6 +3379,7 @@ class CreateBookingPage extends StatefulWidget {
     required this.availableServices,
     this.preferredProviderId,
     this.initialServiceIds,
+    this.currentCity = '',
     required this.onSessionExpired,
   });
 
@@ -3208,6 +3388,7 @@ class CreateBookingPage extends StatefulWidget {
   final List<ServiceItem> availableServices;
   final int? preferredProviderId;
   final List<int>? initialServiceIds;
+  final String currentCity;
   final VoidCallback onSessionExpired;
 
   @override
@@ -3240,6 +3421,25 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
     '16:00-18:00',
     '18:00-20:00',
   ];
+
+  String _normalizeCityQuery(String raw) {
+    final compact = raw.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (compact.isEmpty) return '';
+    final primary = compact.split(',').first.trim();
+    return primary;
+  }
+
+  Future<String?> _resolveCityForProviderFilter() async {
+    final fromWidget = _normalizeCityQuery(widget.currentCity);
+    if (fromWidget.isNotEmpty) return fromWidget;
+
+    final fromLocation = _normalizeCityQuery(_locationController.text);
+    if (fromLocation.isNotEmpty) return fromLocation;
+
+    final savedCity = _normalizeCityQuery((await TokenStore.readCity()) ?? '');
+    if (savedCity.isNotEmpty) return savedCity;
+    return null;
+  }
 
   void _mergeServiceCatalog(Iterable<ServiceItem> services) {
     final byId = <int, ServiceItem>{
@@ -3314,8 +3514,10 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
       _loadingProviders = true;
     });
     try {
+      final city = await _resolveCityForProviderFilter();
       final providers = await widget.api.fetchProviders(
         serviceId: widget.service.id,
+        city: city,
       );
       if (!mounted) return;
       final preferredExists = providers.any(
@@ -3698,14 +3900,12 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
         ),
         child: Row(
           children: <Widget>[
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: const Color(0xFFDDF5E8),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.person_outline, color: Color(0xFF119962)),
+            iconBox(
+              Icons.person_rounded,
+              background: const Color(0xFFDDF5E8),
+              foreground: const Color(0xFF119962),
+              size: 38,
+              iconSize: 20,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -4011,9 +4211,12 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
                 const SizedBox(height: 10),
                 Row(
                   children: <Widget>[
-                    const Icon(
-                      Icons.location_on_outlined,
-                      color: UiTone.softText,
+                    iconBox(
+                      Icons.location_on_rounded,
+                      background: IconColors.teal.$1,
+                      foreground: IconColors.teal.$2,
+                      size: 36,
+                      iconSize: 18,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -4041,7 +4244,13 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
                 const Divider(height: 12),
                 Row(
                   children: <Widget>[
-                    const Icon(Icons.event_outlined, color: UiTone.softText),
+                    iconBox(
+                      Icons.event_rounded,
+                      background: IconColors.blue.$1,
+                      foreground: IconColors.blue.$2,
+                      size: 36,
+                      iconSize: 18,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -4067,9 +4276,15 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
                   children: _timeSlots.map(_slotChip).toList(),
                 ),
                 const Divider(height: 12),
-                const Row(
+                Row(
                   children: <Widget>[
-                    Icon(Icons.phone_outlined, color: UiTone.softText),
+                    iconBox(
+                      Icons.phone_rounded,
+                      background: IconColors.green.$1,
+                      foreground: IconColors.green.$2,
+                      size: 36,
+                      iconSize: 18,
+                    ),
                     SizedBox(width: 8),
                     Text(
                       'Customer',
@@ -4288,10 +4503,14 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
 
   Future<void> _openBookingSummary(BookingItem booking) async {
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => BookingSummaryPage(
+      smoothPageRoute<void>(
+        BookingSummaryPage(
           booking: booking,
           amountPaid: _amountFor(booking),
+          supportApi: widget.api,
+          onSessionExpired: widget.onSessionExpired,
+          supportRole: 'CUSTOMER',
+          preselectedBookingId: booking.id,
         ),
       ),
     );
@@ -4322,7 +4541,7 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
               label,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 32 / 2,
+                fontSize: 16,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                 color: selected
                     ? const Color(0xFF2E3135)
@@ -4402,7 +4621,7 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
                         Text(
                           headerTitle,
                           style: const TextStyle(
-                            fontSize: 34 / 2,
+                            fontSize: 17,
                             fontWeight: FontWeight.w700,
                             color: Color(0xFF2E3135),
                             height: 1.1,
@@ -4427,13 +4646,9 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
                         ),
                         if (!completed) ...<Widget>[
                           const SizedBox(height: 6),
-                          Text(
-                            'Start OTP: ${booking.startOtp.isEmpty ? '-' : booking.startOtp}  •  End OTP: ${booking.endOtp.isEmpty ? '-' : booking.endOtp}',
-                            style: const TextStyle(
-                              color: Color(0xFF0D7C66),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                            ),
+                          _OtpRevealRow(
+                            startOtp: booking.startOtp,
+                            endOtp: booking.endOtp,
                           ),
                         ],
                       ],
@@ -4477,7 +4692,7 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
                     style: TextStyle(
                       color: Color(0xFF10B981),
                       fontWeight: FontWeight.w700,
-                      fontSize: 24 / 2,
+                      fontSize: 12,
                     ),
                   ),
                   SizedBox(width: 4),
@@ -4518,7 +4733,7 @@ class _CustomerBookingsTabState extends State<CustomerBookingsTab> {
           const Text(
             'Your bookings',
             style: TextStyle(
-              fontSize: 34 / 2,
+              fontSize: 17,
               fontWeight: FontWeight.w700,
               color: Color(0xFF2E3135),
             ),
@@ -4580,10 +4795,18 @@ class BookingSummaryPage extends StatelessWidget {
     super.key,
     required this.booking,
     required this.amountPaid,
+    this.supportApi,
+    this.onSessionExpired,
+    this.supportRole = 'CUSTOMER',
+    this.preselectedBookingId,
   });
 
   final BookingItem booking;
   final double amountPaid;
+  final ApiService? supportApi;
+  final VoidCallback? onSessionExpired;
+  final String supportRole;
+  final int? preselectedBookingId;
 
   List<String> get _serviceNames {
     if (booking.serviceNames.isNotEmpty) return booking.serviceNames;
@@ -4664,8 +4887,9 @@ class BookingSummaryPage extends StatelessWidget {
     if (text.contains('clean')) return Icons.cleaning_services_outlined;
     if (text.contains('ac')) return Icons.ac_unit_rounded;
     if (text.contains('repair')) return Icons.build_circle_outlined;
-    if (text.contains('salon') || text.contains('hair'))
+    if (text.contains('salon') || text.contains('hair')) {
       return Icons.content_cut_rounded;
+    }
     if (text.contains('plumber')) return Icons.plumbing_outlined;
     if (text.contains('electric')) return Icons.electrical_services_outlined;
     return Icons.home_repair_service_outlined;
@@ -4744,7 +4968,7 @@ class BookingSummaryPage extends StatelessWidget {
           style: TextStyle(
             color: Color(0xFF2E3135),
             fontWeight: FontWeight.w700,
-            fontSize: 31 / 2,
+            fontSize: 15.5,
           ),
         ),
         actions: const <Widget>[
@@ -4817,7 +5041,7 @@ class BookingSummaryPage extends StatelessWidget {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              '${_dateLabel} • $_timeSlotLabel',
+                              '$_dateLabel • $_timeSlotLabel',
                               style: const TextStyle(
                                 color: Color(0xFF667180),
                                 fontWeight: FontWeight.w600,
@@ -5014,11 +5238,25 @@ class BookingSummaryPage extends StatelessWidget {
                       ),
                       if (booking.status != 'COMPLETED' &&
                           booking.status != 'CANCELLED') ...<Widget>[
-                        _detailBlock(
-                          label: 'Service OTPs',
-                          value:
-                              'Start: ${booking.startOtp.isEmpty ? '-' : booking.startOtp}  |  End: ${booking.endOtp.isEmpty ? '-' : booking.endOtp}',
-                          valueColor: const Color(0xFF0D7C66),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              const Text(
+                                'Service OTPs',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF737B87),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              _OtpRevealRow(
+                                startOtp: booking.startOtp,
+                                endOtp: booking.endOtp,
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                       _detailBlock(
@@ -5031,51 +5269,78 @@ class BookingSummaryPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEEF4F1),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: const Color(0xFFC5D8CE),
-                      width: 1.2,
-                    ),
-                  ),
-                  child: const Row(
-                    children: <Widget>[
-                      Icon(
-                        Icons.support_agent_rounded,
-                        color: Color(0xFF8A93A0),
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              'Need help with your booking?',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF2E3135),
-                                fontSize: 17,
-                              ),
-                            ),
-                            Text(
-                              'Support is here to help',
-                              style: TextStyle(
-                                color: Color(0xFF7D8591),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                    onTap: () {
+                      if (supportApi == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Support is not available here yet'),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.of(context).push(
+                        smoothPageRoute<void>(
+                          SupportCenterPage(
+                            api: supportApi!,
+                            role: supportRole,
+                            onSessionExpired: onSessionExpired ?? () {},
+                            initialBookingId:
+                                preselectedBookingId ?? booking.id,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEF4F1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFFC5D8CE),
+                          width: 1.2,
                         ),
                       ),
-                      Icon(
-                        Icons.chevron_right_rounded,
-                        color: Color(0xFF8A93A0),
+                      child: const Row(
+                        children: <Widget>[
+                          Icon(
+                            Icons.support_agent_rounded,
+                            color: Color(0xFF8A93A0),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  'Need help with your booking?',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF2E3135),
+                                    fontSize: 17,
+                                  ),
+                                ),
+                                Text(
+                                  'Support is here to help',
+                                  style: TextStyle(
+                                    color: Color(0xFF7D8591),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color: Color(0xFF8A93A0),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ],
@@ -5099,10 +5364,7 @@ class BookingSummaryPage extends StatelessWidget {
                   onPressed: () {},
                   child: const Text(
                     'View booking details',
-                    style: TextStyle(
-                      fontSize: 30 / 2,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -5297,10 +5559,14 @@ class _NotificationsTabState extends State<NotificationsTab> {
     if (!mounted || booking == null) return;
 
     await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => BookingSummaryPage(
+      smoothPageRoute<void>(
+        BookingSummaryPage(
           booking: booking,
           amountPaid: _amountForBooking(booking),
+          supportApi: widget.api,
+          onSessionExpired: widget.onSessionExpired,
+          supportRole: 'CUSTOMER',
+          preselectedBookingId: booking.id,
         ),
       ),
     );
@@ -5714,11 +5980,13 @@ class SupportCenterPage extends StatefulWidget {
     required this.api,
     required this.role,
     required this.onSessionExpired,
+    this.initialBookingId,
   });
 
   final ApiService api;
   final String role;
   final VoidCallback onSessionExpired;
+  final int? initialBookingId;
 
   @override
   State<SupportCenterPage> createState() => _SupportCenterPageState();
@@ -5745,6 +6013,7 @@ class _SupportCenterPageState extends State<SupportCenterPage> {
   @override
   void initState() {
     super.initState();
+    _selectedBookingId = widget.initialBookingId;
     _load();
   }
 
@@ -6263,15 +6532,13 @@ class _AccountTabState extends State<AccountTab> {
   }
 
   void _openAddressBook() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const AddressBookPage()));
+    Navigator.of(context).push(smoothPageRoute<void>(const AddressBookPage()));
   }
 
   void _openSupportCenter() {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => SupportCenterPage(
+      smoothPageRoute<void>(
+        SupportCenterPage(
           api: widget.api,
           role: widget.profile.role,
           onSessionExpired: widget.onSessionExpired,
@@ -6317,12 +6584,40 @@ class _AccountTabState extends State<AccountTab> {
   }
 
   Future<void> _changePassword() async {
-    if (_currentPasswordController.text.isEmpty ||
-        _newPasswordController.text.isEmpty ||
-        _confirmPasswordController.text.isEmpty) {
+    final current = _currentPasswordController.text;
+    final newPass = _newPasswordController.text;
+    final confirm = _confirmPasswordController.text;
+
+    if (current.isEmpty || newPass.isEmpty || confirm.isEmpty) {
       showApiError(
         context,
         const ApiException('All password fields are required'),
+      );
+      return;
+    }
+
+    if (newPass.length < 8) {
+      showApiError(
+        context,
+        const ApiException('New password must be at least 8 characters'),
+      );
+      return;
+    }
+
+    if (newPass == current) {
+      showApiError(
+        context,
+        const ApiException(
+          'New password must be different from current password',
+        ),
+      );
+      return;
+    }
+
+    if (newPass != confirm) {
+      showApiError(
+        context,
+        const ApiException('New password and confirm password do not match'),
       );
       return;
     }
@@ -6662,8 +6957,9 @@ class _AccountTabState extends State<AccountTab> {
                 _menuCard(
                   children: <Widget>[
                     _menuTile(
-                      icon: Icons.calendar_today_outlined,
+                      icon: Icons.calendar_today_rounded,
                       label: 'Your bookings',
+                      colors: IconColors.blue,
                       onTap: () {
                         widget.onOpenBookings?.call();
                         if (Navigator.of(context).canPop()) {
@@ -6673,8 +6969,9 @@ class _AccountTabState extends State<AccountTab> {
                     ),
                     const _MenuDivider(),
                     _menuTile(
-                      icon: Icons.location_on_outlined,
+                      icon: Icons.location_on_rounded,
                       label: 'Address book',
+                      colors: IconColors.teal,
                       onTap: _openAddressBook,
                     ),
                   ],
@@ -6684,8 +6981,9 @@ class _AccountTabState extends State<AccountTab> {
                 _menuCard(
                   children: <Widget>[
                     _menuTile(
-                      icon: Icons.info_outline_rounded,
+                      icon: Icons.info_rounded,
                       label: 'About us',
+                      colors: IconColors.green,
                       onTap: () => _showInfoSheet(
                         title: 'About us',
                         message:
@@ -6694,8 +6992,9 @@ class _AccountTabState extends State<AccountTab> {
                     ),
                     const _MenuDivider(),
                     _menuTile(
-                      icon: Icons.description_outlined,
+                      icon: Icons.description_rounded,
                       label: 'Terms & conditions',
+                      colors: IconColors.slate,
                       onTap: () => _showInfoSheet(
                         title: 'Terms & conditions',
                         message:
@@ -6704,8 +7003,9 @@ class _AccountTabState extends State<AccountTab> {
                     ),
                     const _MenuDivider(),
                     _menuTile(
-                      icon: Icons.shield_outlined,
+                      icon: Icons.shield_rounded,
                       label: 'Privacy policy',
+                      colors: IconColors.purple,
                       onTap: () => _showInfoSheet(
                         title: 'Privacy policy',
                         message:
@@ -6714,20 +7014,23 @@ class _AccountTabState extends State<AccountTab> {
                     ),
                     const _MenuDivider(),
                     _menuTile(
-                      icon: Icons.headset_mic_outlined,
+                      icon: Icons.headset_mic_rounded,
                       label: 'Help & support',
+                      colors: IconColors.orange,
                       onTap: _openSupportCenter,
                     ),
                     const _MenuDivider(),
                     _menuTile(
-                      icon: Icons.lock_outline_rounded,
+                      icon: Icons.lock_rounded,
                       label: 'Change password',
+                      colors: IconColors.blue,
                       onTap: _openChangePassword,
                     ),
                     const _MenuDivider(),
                     _menuTile(
-                      icon: Icons.delete_outline_rounded,
+                      icon: Icons.delete_rounded,
                       label: 'Request account deletion',
+                      colors: IconColors.red,
                       onTap: _requestDeletion,
                     ),
                   ],
@@ -6813,24 +7116,25 @@ class _AccountTabState extends State<AccountTab> {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    (Color, Color) colors = IconColors.green,
     Widget? trailing,
   }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         child: Row(
           children: <Widget>[
-            Icon(icon, size: 22, color: const Color(0xFF5A6B63)),
-            const SizedBox(width: 16),
+            iconBox(icon, background: colors.$1, foreground: colors.$2),
+            const SizedBox(width: 14),
             Expanded(
               child: Row(
                 children: <Widget>[
                   Text(
                     label,
                     style: const TextStyle(
-                      fontSize: 15.5,
+                      fontSize: 15,
                       fontWeight: FontWeight.w500,
                       color: Color(0xFF1A2B23),
                     ),
@@ -6844,8 +7148,8 @@ class _AccountTabState extends State<AccountTab> {
             ),
             const Icon(
               Icons.chevron_right_rounded,
-              size: 22,
-              color: Color(0xFFB0B8B4),
+              size: 20,
+              color: Color(0xFFC0C8C4),
             ),
           ],
         ),
@@ -7068,7 +7372,7 @@ class _AddressBookPageState extends State<AddressBookPage> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: labelType,
+                    initialValue: labelType,
                     decoration: const InputDecoration(
                       labelText: 'Address label',
                     ),

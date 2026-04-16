@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'api.dart';
 import 'models.dart';
@@ -51,56 +52,66 @@ class _ServiceAppState extends State<ServiceApp> {
     final base = ThemeData(
       colorScheme: colorScheme,
       useMaterial3: true,
-      fontFamily: 'Poppins',
     );
+
+    final poppinsTextTheme = GoogleFonts.poppinsTextTheme(base.textTheme);
 
     return base.copyWith(
       scaffoldBackgroundColor: background,
-      textTheme: base.textTheme.copyWith(
-        headlineLarge: const TextStyle(
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: <TargetPlatform, PageTransitionsBuilder>{
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
+      textTheme: poppinsTextTheme.copyWith(
+        headlineLarge: poppinsTextTheme.headlineLarge?.copyWith(
           fontSize: 32,
           fontWeight: FontWeight.w700,
           color: textPrimary,
           letterSpacing: -0.8,
         ),
-        headlineMedium: const TextStyle(
+        headlineMedium: poppinsTextTheme.headlineMedium?.copyWith(
           fontSize: 24,
           fontWeight: FontWeight.w700,
           color: textPrimary,
           letterSpacing: -0.4,
         ),
-        titleLarge: const TextStyle(
+        titleLarge: poppinsTextTheme.titleLarge?.copyWith(
           fontSize: 20,
           fontWeight: FontWeight.w700,
           color: textPrimary,
         ),
-        titleMedium: const TextStyle(
+        titleMedium: poppinsTextTheme.titleMedium?.copyWith(
           fontSize: 17,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
           color: textPrimary,
         ),
-        bodyLarge: const TextStyle(
+        bodyLarge: poppinsTextTheme.bodyLarge?.copyWith(
           fontSize: 15,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w400,
           color: textMuted,
         ),
-        bodyMedium: const TextStyle(
+        bodyMedium: poppinsTextTheme.bodyMedium?.copyWith(
           fontSize: 13.5,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w400,
           color: textMuted,
         ),
-        labelLarge: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        labelLarge: poppinsTextTheme.labelLarge?.copyWith(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
       ),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         elevation: 0,
         centerTitle: false,
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         foregroundColor: textPrimary,
-        titleTextStyle: TextStyle(
+        titleTextStyle: GoogleFonts.poppins(
           color: textPrimary,
           fontSize: 20,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
@@ -114,9 +125,9 @@ class _ServiceAppState extends State<ServiceApp> {
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
-          return TextStyle(
+          return GoogleFonts.poppins(
             color: selected ? primary : textMuted,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
           );
         }),
       ),
@@ -136,7 +147,7 @@ class _ServiceAppState extends State<ServiceApp> {
           minimumSize: const Size(0, 48),
           backgroundColor: primary,
           foregroundColor: onPrimary,
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          textStyle: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -146,7 +157,7 @@ class _ServiceAppState extends State<ServiceApp> {
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(0, 48),
           foregroundColor: primary,
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          textStyle: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600),
           side: const BorderSide(color: stroke, width: 0.5),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -172,13 +183,13 @@ class _ServiceAppState extends State<ServiceApp> {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: primary, width: 1.4),
         ),
-        labelStyle: const TextStyle(
+        labelStyle: GoogleFonts.poppins(
           color: textMuted,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w500,
         ),
-        hintStyle: const TextStyle(
-          color: Color(0xFF8A9B93),
-          fontWeight: FontWeight.w700,
+        hintStyle: GoogleFonts.poppins(
+          color: const Color(0xFF8A9B93),
+          fontWeight: FontWeight.w400,
         ),
       ),
       chipTheme: ChipThemeData(
@@ -188,9 +199,9 @@ class _ServiceAppState extends State<ServiceApp> {
           borderRadius: BorderRadius.circular(12),
           side: const BorderSide(color: stroke, width: 0.5),
         ),
-        labelStyle: const TextStyle(
+        labelStyle: GoogleFonts.poppins(
           color: textPrimary,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w500,
         ),
       ),
       dialogTheme: DialogThemeData(
@@ -201,9 +212,9 @@ class _ServiceAppState extends State<ServiceApp> {
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: const Color(0xFF1A2B23),
-        contentTextStyle: const TextStyle(
+        contentTextStyle: GoogleFonts.poppins(
           color: Colors.white,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w500,
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -361,62 +372,152 @@ class _ServiceAppState extends State<ServiceApp> {
   }
 }
 
-class _SplashScreen extends StatelessWidget {
+class _SplashScreen extends StatefulWidget {
   const _SplashScreen();
+
+  @override
+  State<_SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<_SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _logoScale;
+  late final Animation<double> _logoOpacity;
+  late final Animation<double> _textOpacity;
+  late final Animation<Offset> _textSlide;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+
+    _logoScale = Tween<double>(begin: 0.6, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.6, curve: Curves.easeOutBack),
+      ),
+    );
+    _logoOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
+      ),
+    );
+    _textOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.4, 0.85, curve: Curves.easeOut),
+      ),
+    );
+    _textSlide = Tween<Offset>(
+      begin: const Offset(0, 0.15),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.4, 0.85, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7F6),
       body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Container(
-              width: 84,
-              height: 84,
-              decoration: BoxDecoration(
-                color: const Color(0xFF0D7C66),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: const <BoxShadow>[
-                  BoxShadow(
-                    color: Color(0x220D7C66),
-                    blurRadius: 20,
-                    offset: Offset(0, 10),
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Opacity(
+                opacity: _logoOpacity.value,
+                child: Transform.scale(
+                  scale: _logoScale.value,
+                  child: Container(
+                    width: 88,
+                    height: 88,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: <Color>[
+                          Color(0xFF0D7C66),
+                          Color(0xFF14A38B),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(26),
+                      boxShadow: const <BoxShadow>[
+                        BoxShadow(
+                          color: Color(0x300D7C66),
+                          blurRadius: 28,
+                          offset: Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.home_repair_service_rounded,
+                      color: Colors.white,
+                      size: 44,
+                    ),
                   ),
-                ],
+                ),
               ),
-              child: const Icon(
-                Icons.home_repair_service_rounded,
-                color: Colors.white,
-                size: 44,
+              const SizedBox(height: 22),
+              SlideTransition(
+                position: _textSlide,
+                child: Opacity(
+                  opacity: _textOpacity.value,
+                  child: Column(
+                    children: <Widget>[
+                      Text(
+                        'ServiceApp',
+                        style: GoogleFonts.poppins(
+                          fontSize: 30,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF0F172A),
+                          letterSpacing: -0.8,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Trusted help at your doorstep',
+                        style: GoogleFonts.poppins(
+                          color: const Color(0xFF5A6B63),
+                          fontWeight: FontWeight.w400,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              'ServiceApp',
-              style: TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF0F172A),
-                letterSpacing: -0.6,
+              const SizedBox(height: 32),
+              Opacity(
+                opacity: _textOpacity.value,
+                child: const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    color: Color(0xFF0D7C66),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Trusted help at your doorstep',
-              style: TextStyle(
-                color: Color(0xFF5A6B63),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 24),
-            const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2.4),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

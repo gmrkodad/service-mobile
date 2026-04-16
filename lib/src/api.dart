@@ -82,11 +82,15 @@ class ApiService {
       response = await http.Response.fromStream(await _client.send(request));
     } on http.ClientException catch (error) {
       throw ApiException(
-        'Cannot connect to ${AppConfig.baseUrl}. Start Django server and check network access. (${error.message})',
+        AppConfig.isProduction
+            ? 'Connection failed. Please check your internet and try again.'
+            : 'Cannot connect to ${AppConfig.baseUrl}. (${error.message})',
       );
     } catch (error) {
       throw ApiException(
-        'Network error while calling ${AppConfig.baseUrl}: $error',
+        AppConfig.isProduction
+            ? 'A network error occurred. Please try again.'
+            : 'Network error: $error',
       );
     }
     final decoded = _decodeBody(response.body);
@@ -331,8 +335,10 @@ class ApiService {
     String? city,
   }) async {
     final query = <String, String>{};
-    if (city != null && city.trim().isNotEmpty) {
-      query['city'] = city.trim();
+    final normalizedCity = (city ?? '').trim().replaceAll(RegExp(r'\s+'), ' ');
+    final cityKey = normalizedCity.split(',').first.trim();
+    if (cityKey.isNotEmpty) {
+      query['city'] = cityKey;
     }
 
     final body = await _request(
@@ -857,11 +863,15 @@ class ApiService {
       response = await http.Response.fromStream(await _client.send(request));
     } on http.ClientException catch (error) {
       throw ApiException(
-        'Cannot connect to ${AppConfig.baseUrl}. Start Django server and check network access. (${error.message})',
+        AppConfig.isProduction
+            ? 'Connection failed. Please check your internet and try again.'
+            : 'Cannot connect to ${AppConfig.baseUrl}. (${error.message})',
       );
     } catch (error) {
       throw ApiException(
-        'Network error while uploading icon to ${AppConfig.baseUrl}: $error',
+        AppConfig.isProduction
+            ? 'Upload failed. Please try again.'
+            : 'Network error while uploading: $error',
       );
     }
 

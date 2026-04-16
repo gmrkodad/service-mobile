@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'src/app.dart';
+import 'src/session.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,5 +18,9 @@ Future<void> main() async {
   } catch (_) {
     // Allow app to run in environments where Firebase config is not set yet.
   }
+
+  // Migrate any existing tokens from SharedPreferences to secure storage.
+  await TokenStore.migrateFromSharedPreferences();
+
   runApp(const ServiceApp());
 }

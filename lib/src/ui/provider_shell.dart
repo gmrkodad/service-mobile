@@ -97,13 +97,13 @@ class _ProviderShellState extends State<ProviderShell> {
         },
         destinations: const <Widget>[
           NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
+            icon: Icon(Icons.dashboard_outlined, size: 24),
+            selectedIcon: Icon(Icons.dashboard_rounded, size: 24),
             label: 'Dashboard',
           ),
           NavigationDestination(
-            icon: Icon(Icons.build_outlined),
-            selectedIcon: Icon(Icons.build),
+            icon: Icon(Icons.build_outlined, size: 23),
+            selectedIcon: Icon(Icons.build_rounded, size: 23),
             label: 'Services',
           ),
         ],
@@ -178,6 +178,10 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
         builder: (_) => BookingSummaryPage(
           booking: booking,
           amountPaid: _amountFor(booking),
+          supportApi: widget.api,
+          onSessionExpired: widget.onSessionExpired,
+          supportRole: 'PROVIDER',
+          preselectedBookingId: booking.id,
         ),
       ),
     );
@@ -471,7 +475,7 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
                     'Earnings: ₹${_earningForBooking(booking).toStringAsFixed(0)}',
                     style: const TextStyle(
                       color: Color(0xFF0D7C66),
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -501,7 +505,7 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
             text,
             style: const TextStyle(
               color: UiTone.ink,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -628,7 +632,7 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
                     'Total earnings: ₹${totalEarnings.toStringAsFixed(0)}',
                     style: const TextStyle(
                       color: Color(0xFFA8E6CF),
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 14),

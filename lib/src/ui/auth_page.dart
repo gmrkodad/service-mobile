@@ -107,6 +107,7 @@ class _AuthPageState extends State<AuthPage> {
   bool _verifying = false;
   bool _loadingServices = false;
   bool _syncingOtpInputs = false;
+  bool _otpSentOnce = false;
   int _resendSecondsRemaining = 0;
   Timer? _resendTimer;
   _AuthStep _step = _AuthStep.phone;
@@ -259,6 +260,8 @@ class _AuthPageState extends State<AuthPage> {
       showApiError(context, const ApiException('Phone number is required'));
       return;
     }
+    // Prevent rapid re-sends — user must use "Resend OTP" after countdown.
+    if (_otpSentOnce) return;
     setState(() {
       _sendingOtp = true;
     });
@@ -267,6 +270,7 @@ class _AuthPageState extends State<AuthPage> {
       if (!mounted) return;
       setState(() {
         _step = _AuthStep.otp;
+        _otpSentOnce = true;
       });
       _clearOtpInputs();
       _startResendCountdown();
@@ -291,6 +295,7 @@ class _AuthPageState extends State<AuthPage> {
     setState(() {
       _step = _AuthStep.phone;
       _resendSecondsRemaining = 0;
+      _otpSentOnce = false;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -456,31 +461,65 @@ class _AuthPageState extends State<AuthPage> {
             padding: const EdgeInsets.all(20),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 460),
-              child: Container(
+              child: Column(
+                children: <Widget>[
+                  // Branded hero
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: <Color>[
+                          Color(0xFF0D7C66),
+                          Color(0xFF14A38B),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: const <BoxShadow>[
+                        BoxShadow(
+                          color: Color(0x300D7C66),
+                          blurRadius: 20,
+                          offset: Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.home_repair_service_rounded,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'ServiceApp',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      color: UiTone.ink,
+                      letterSpacing: -0.6,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Login with your phone number',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: UiTone.softText,
+                      fontWeight: FontWeight.w400,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Form card
+                  Container(
                 padding: const EdgeInsets.all(20),
                 decoration: elevatedSurface(radius: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    const Text(
-                      'ServiceApp',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w800,
-                        color: UiTone.ink,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Login with your phone number',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: UiTone.softText,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 22),
                     if (_step == _AuthStep.phone) ...<Widget>[
                       TextField(
                         controller: _phoneController,
@@ -519,7 +558,7 @@ class _AuthPageState extends State<AuthPage> {
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: UiTone.softText,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                       const SizedBox(height: 14),
@@ -574,7 +613,7 @@ class _AuthPageState extends State<AuthPage> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: UiTone.softText,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w400,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -582,7 +621,7 @@ class _AuthPageState extends State<AuthPage> {
                         onPressed: _changePhoneNumber,
                         child: const Text(
                           'Change number',
-                          style: TextStyle(fontWeight: FontWeight.w700),
+                          style: TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -592,7 +631,7 @@ class _AuthPageState extends State<AuthPage> {
                                 'Resend OTP in 00:${_resendSecondsRemaining.toString().padLeft(2, '0')}',
                                 style: const TextStyle(
                                   color: UiTone.softText,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w400,
                                 ),
                               )
                             : TextButton(
@@ -600,7 +639,7 @@ class _AuthPageState extends State<AuthPage> {
                                 child: Text(
                                   _resendingOtp ? 'Resending...' : 'Resend OTP',
                                   style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ),
@@ -707,7 +746,7 @@ class _AuthPageState extends State<AuthPage> {
                         const Text(
                           'Select services',
                           style: TextStyle(
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w600,
                             color: UiTone.ink,
                           ),
                         ),
@@ -829,6 +868,8 @@ class _AuthPageState extends State<AuthPage> {
                     ],
                   ],
                 ),
+              ),
+                ],
               ),
             ),
           ),

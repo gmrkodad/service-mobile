@@ -19,6 +19,14 @@ def _otp4() -> str:
     return f"{random.randint(0, 9999):04d}"
 
 
+def _normalize_city(value: str) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    raw = raw.split(",", 1)[0].strip()
+    return " ".join(raw.split()).lower()
+
+
 def _provider_busy_for_slot(provider, scheduled_date, time_slot) -> bool:
     return Booking.objects.filter(
         provider=provider,
@@ -96,8 +104,9 @@ class BookingCreateView(APIView):
         if provider is None:
             return Response({"detail": "Selected provider is not valid"}, status=400)
 
-        customer_city = (request.user.city or "").strip()
-        if customer_city and provider.city and provider.city.lower() != customer_city.lower():
+        customer_city = _normalize_city(getattr(request.user, "city", ""))
+        provider_city = _normalize_city(getattr(provider, "city", ""))
+        if customer_city and provider_city and provider_city != customer_city:
             return Response({"detail": "Selected provider is not available in your city"}, status=400)
 
         provider_service_ids = set(
