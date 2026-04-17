@@ -1,5 +1,6 @@
 // ignore_for_file: unused_element, unused_field
 
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
@@ -3404,6 +3405,7 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
   bool _submitting = false;
   bool _detectingAddress = false;
   bool _loadingProviders = false;
+  bool _providerLockedByPreviousStep = false;
   final Set<int> _selectedServiceIds = <int>{};
   final List<ServiceItem> _serviceCatalog = <ServiceItem>[];
   List<ProviderItem> _providers = <ProviderItem>[];
@@ -3525,6 +3527,7 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
       );
       setState(() {
         _providers = providers;
+        _providerLockedByPreviousStep = preferredExists;
         _selectedProviderId = preferredExists
             ? widget.preferredProviderId
             : (providers.isNotEmpty ? providers.first.id : null);
@@ -3617,10 +3620,9 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
       );
       if (!mounted) return;
       _customerCartDraft = null;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Booking created. ID #$bookingId')),
+      await Navigator.of(context).push(
+        smoothPageRoute<void>(_BookingCreatedSuccessPage(bookingId: bookingId)),
       );
-      Navigator.of(context).pop();
     } catch (error) {
       if (error is ApiException && error.statusCode == 401) {
         widget.onSessionExpired();
@@ -3875,17 +3877,19 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
     );
   }
 
-  Widget _providerSelectionCard(ProviderItem provider) {
+  Widget _providerSelectionCard(ProviderItem provider, {bool enabled = true}) {
     final selected = _selectedProviderId == provider.id;
     final name = provider.fullName.isEmpty
         ? provider.username
         : provider.fullName;
     return InkWell(
-      onTap: () async {
-        setState(() => _selectedProviderId = provider.id);
-        _syncCartDraft();
-        await _loadProviderServiceCatalog(provider.id);
-      },
+      onTap: !enabled
+          ? null
+          : () async {
+              setState(() => _selectedProviderId = provider.id);
+              _syncCartDraft();
+              await _loadProviderServiceCatalog(provider.id);
+            },
       borderRadius: BorderRadius.circular(14),
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
@@ -3933,7 +3937,11 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
               ),
             ),
             Icon(
-              selected ? Icons.check_circle : Icons.radio_button_unchecked,
+              selected
+                  ? Icons.check_circle
+                  : (enabled
+                        ? Icons.radio_button_unchecked
+                        : Icons.check_circle_outline),
               color: selected
                   ? const Color(0xFF0FA467)
                   : const Color(0xFFB0B8C4),
@@ -3950,6 +3958,13 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
     final subtotal = _subtotal();
     final fees = _taxesAndFees();
     final total = subtotal + fees;
+    ProviderItem? selectedProvider;
+    for (final provider in _providers) {
+      if (provider.id == _selectedProviderId) {
+        selectedProvider = provider;
+        break;
+      }
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F3F7),
@@ -4151,9 +4166,14 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const Text(
-                  'Select professional',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                Text(
+                  _providerLockedByPreviousStep
+                      ? 'Assigned professional'
+                      : 'Select professional',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 if (_loadingProviders)
@@ -4161,6 +4181,9 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
                     padding: EdgeInsets.symmetric(vertical: 10),
                     child: Center(child: CircularProgressIndicator()),
                   )
+                else if (_providerLockedByPreviousStep &&
+                    selectedProvider != null)
+                  _providerSelectionCard(selectedProvider, enabled: false)
                 else
                   Column(
                     children: _providers.map(_providerSelectionCard).toList(),
@@ -4329,6 +4352,128 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _BookingCreatedSuccessPage extends StatefulWidget {
+  const _BookingCreatedSuccessPage({required this.bookingId});
+
+  final int bookingId;
+
+  @override
+  State<_BookingCreatedSuccessPage> createState() =>
+      _BookingCreatedSuccessPageState();
+}
+
+class _BookingCreatedSuccessPageState
+    extends State<_BookingCreatedSuccessPage> {
+  Timer? _redirectTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _redirectTimer = Timer(const Duration(seconds: 2), _finishFlow);
+  }
+
+  @override
+  void dispose() {
+    _redirectTimer?.cancel();
+    super.dispose();
+  }
+
+  void _finishFlow() {
+    if (!mounted) return;
+    _customerGoHomeFromCart?.call();
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF0F7F3),
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xFFBFE3CD), width: 1.2),
+                boxShadow: const <BoxShadow>[
+                  BoxShadow(
+                    color: Color(0x140A5A31),
+                    blurRadius: 24,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Container(
+                    width: 86,
+                    height: 86,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE7F8EE),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFF74D39C),
+                        width: 2,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.check_rounded,
+                      size: 46,
+                      color: Color(0xFF109B61),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Booking Created',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF122018),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Your booking #${widget.bookingId} is confirmed.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      height: 1.35,
+                      color: UiTone.softText,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const SizedBox(
+                    width: 26,
+                    height: 26,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      color: Color(0xFF10B766),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Redirecting to home...',
+                    style: TextStyle(
+                      color: UiTone.softText,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

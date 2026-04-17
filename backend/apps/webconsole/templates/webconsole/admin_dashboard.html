@@ -1,0 +1,179 @@
+{% extends "webconsole/base.html" %}
+
+{% block page_title %}Admin Command Center{% endblock %}
+{% block page_subtitle %}Dedicated operations sections for users, bookings, and support management{% endblock %}
+
+{% block content %}
+  <div class="quick-nav">
+    <a href="#overview">Overview</a>
+    <a href="{% url 'console_admin_users' %}">Users Page</a>
+    <a href="{% url 'console_admin_bookings' %}">Bookings Page</a>
+    <a href="{% url 'console_admin_categories' %}">Categories Page</a>
+    <a href="{% url 'console_admin_services' %}">Services Page</a>
+    <a href="{% url 'console_admin_tickets' %}">Tickets Page</a>
+    <a href="{% url 'console_admin_reviews' %}">Reviews Page</a>
+  </div>
+
+  <div class="grid">
+    <div class="card hero">
+      <div class="kpi-label">Open Operational Load</div>
+      <div class="kpi-value">{{ bookings_open }}</div>
+      <div class="kpi-foot">Bookings that still need active handling</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Total Users</div>
+      <div class="kpi-value">{{ users_total }}</div>
+      <div class="kpi-foot">Across all platform roles</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Open Tickets</div>
+      <div class="kpi-value">{{ tickets_open }}</div>
+      <div class="kpi-foot">Support queue requiring action</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Live Bookings</div>
+      <div class="kpi-value">{{ bookings_total }}</div>
+      <div class="kpi-foot">Total booking records in system</div>
+    </div>
+  </div>
+
+  <section class="section" id="overview">
+    <div class="section-hd">
+      <div>
+        <div class="section-title">Platform Overview</div>
+        <div class="section-sub">Role coverage and catalog scale at a glance</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="grid">
+        <div class="card"><div class="kpi-label">Customers</div><div class="kpi-value">{{ customers_total }}</div></div>
+        <div class="card"><div class="kpi-label">Providers</div><div class="kpi-value">{{ providers_total }}</div></div>
+        <div class="card"><div class="kpi-label">Support Accounts</div><div class="kpi-value">{{ support_total }}</div></div>
+        <div class="card"><div class="kpi-label">Categories</div><div class="kpi-value">{{ categories_total }}</div></div>
+        <div class="card"><div class="kpi-label">Services</div><div class="kpi-value">{{ services_total }}</div></div>
+        <div class="card"><div class="kpi-label">Bookings</div><div class="kpi-value">{{ bookings_total }}</div></div>
+      </div>
+    </div>
+  </section>
+  <section class="section" id="support">
+    <div class="section-hd">
+      <div>
+        <div class="section-title">Support Ticket Section</div>
+        <div class="section-sub">Escalations and issue statuses with quick update controls</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Requester</th>
+            <th>Issue</th>
+            <th>Booking</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in recent_tickets %}
+            <tr>
+              <td>#{{ t.id }}</td>
+              <td>{{ t.requester.display_name }}<div class="muted">{{ t.requester.role }}</div></td>
+              <td>{{ t.issue_type }}<div class="muted">{{ t.message|truncatechars:70 }}</div></td>
+              <td>{% if t.booking_id %}#{{ t.booking_id }}{% else %}-{% endif %}</td>
+              <td><span class="status">{{ t.status }}</span></td>
+              <td>
+                <form class="row-actions" method="post" action="{% url 'console_ticket_status' t.id %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{% url 'console_admin_dashboard' %}">
+                  <select name="status">
+                    {% for value, label in ticket_statuses %}
+                      <option value="{{ value }}" {% if t.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                  <button class="btn primary" type="submit">Update</button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6">No support tickets.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section" id="bookings">
+    <div class="section-hd">
+      <div>
+        <div class="section-title">Booking Operations Section</div>
+        <div class="section-sub">Recent jobs across customer and provider pipeline</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Service</th>
+            <th>Customer</th>
+            <th>Provider</th>
+            <th>Date / Slot</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in recent_bookings %}
+            <tr>
+              <td>#{{ b.id }}</td>
+              <td>{% if b.service %}{{ b.service.name }}{% else %}-{% endif %}</td>
+              <td>{{ b.customer.display_name }}</td>
+              <td>{% if b.provider %}{{ b.provider.display_name }}{% else %}-{% endif %}</td>
+              <td>{{ b.scheduled_date }}<div class="muted">{{ b.time_slot }}</div></td>
+              <td><span class="status">{{ b.status }}</span></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6">No bookings yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section" id="users">
+    <div class="section-hd">
+      <div>
+        <div class="section-title">User Directory Section</div>
+        <div class="section-sub">New accounts and activation states</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Active</th>
+            <th>Joined</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in recent_users %}
+            <tr>
+              <td>{{ u.display_name }}</td>
+              <td>{{ u.phone }}</td>
+              <td>{{ u.email|default:"-" }}</td>
+              <td><span class="status">{{ u.role }}</span></td>
+              <td>{{ u.is_active }}</td>
+              <td>{{ u.date_joined }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6">No users found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

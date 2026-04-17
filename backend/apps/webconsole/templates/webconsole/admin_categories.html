@@ -1,0 +1,83 @@
+{% extends "webconsole/base.html" %}
+
+{% block page_title %}Category Management{% endblock %}
+{% block page_subtitle %}Create, edit, activate, or remove service categories{% endblock %}
+
+{% block content %}
+  <div class="quick-nav">
+    <a href="{% url 'console_admin_dashboard' %}">Dashboard</a>
+    <a href="{% url 'console_admin_services' %}">Services</a>
+    <a href="{% url 'console_admin_users' %}">Users</a>
+  </div>
+
+  <section class="section">
+    <div class="section-hd">
+      <div>
+        <div class="section-title">Add Category</div>
+        <div class="section-sub">Create new category cards shown in app</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <form method="post" class="row-actions">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_category">
+        <input name="name" placeholder="Category name" style="padding:8px 10px;border:1px solid #cdded5;border-radius:9px;">
+        <input name="description" placeholder="Description" style="padding:8px 10px;border:1px solid #cdded5;border-radius:9px;min-width:260px;">
+        <input name="image_url" placeholder="Image URL" style="padding:8px 10px;border:1px solid #cdded5;border-radius:9px;min-width:260px;">
+        <label class="muted"><input type="checkbox" name="is_active" value="1" checked> Active</label>
+        <button class="btn primary" type="submit">Add Category</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-hd">
+      <div>
+        <div class="section-title">Existing Categories</div>
+        <div class="section-sub">Inline updates and delete controls</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Image URL</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for category in categories %}
+            <tr>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="update_category">
+                <input type="hidden" name="category_id" value="{{ category.id }}">
+                <td>#{{ category.id }}</td>
+                <td><input name="name" value="{{ category.name }}" style="padding:7px 8px;border:1px solid #cdded5;border-radius:8px;min-width:160px;"></td>
+                <td><input name="description" value="{{ category.description }}" style="padding:7px 8px;border:1px solid #cdded5;border-radius:8px;min-width:220px;"></td>
+                <td><input name="image_url" value="{{ category.image_url }}" style="padding:7px 8px;border:1px solid #cdded5;border-radius:8px;min-width:240px;"></td>
+                <td><label class="muted"><input type="checkbox" name="is_active" value="1" {% if category.is_active %}checked{% endif %}> Active</label></td>
+                <td>
+                  <button class="btn primary" type="submit">Save</button>
+              </form>
+              <form method="post" style="display:inline-block;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete_category">
+                <input type="hidden" name="category_id" value="{{ category.id }}">
+                <button class="btn" type="submit">Delete</button>
+              </form>
+                </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6">No categories yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
+

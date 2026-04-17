@@ -15,6 +15,8 @@ class BookingSerializer(serializers.ModelSerializer):
     review_comment = serializers.SerializerMethodField()
     item_total = serializers.SerializerMethodField()
     total_amount = serializers.SerializerMethodField()
+    start_otp = serializers.SerializerMethodField()
+    end_otp = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -84,6 +86,20 @@ class BookingSerializer(serializers.ModelSerializer):
 
     def get_total_amount(self, obj):
         return round(self._item_total(obj) + 2.52, 2)
+
+    def get_start_otp(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user and user.is_authenticated and obj.customer_id == user.id:
+            return obj.start_otp
+        return ""
+
+    def get_end_otp(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user and user.is_authenticated and obj.customer_id == user.id:
+            return obj.end_otp
+        return ""
 
 
 class AdminReviewSerializer(serializers.ModelSerializer):

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../api.dart';
 import '../models.dart';
@@ -30,7 +31,7 @@ class _ProviderShellState extends State<ProviderShell> {
 
   void _openDashboardBookings() {
     setState(() {
-      _index = 0;
+      _index = 2;
     });
   }
 
@@ -42,13 +43,13 @@ class _ProviderShellState extends State<ProviderShell> {
 
   void _openAlertsTab() {
     setState(() {
-      _index = 2;
+      _index = 3;
     });
   }
 
   void _openProfileTab() {
     setState(() {
-      _index = 3;
+      _index = 4;
     });
   }
 
@@ -66,6 +67,13 @@ class _ProviderShellState extends State<ProviderShell> {
         api: widget.api,
         onSessionExpired: widget.onSessionExpired,
         onBack: _openDashboardHome,
+      ),
+      ProviderDashboardTab(
+        api: widget.api,
+        profile: widget.profile,
+        onSessionExpired: widget.onSessionExpired,
+        showOnlyIncoming: false,
+        showDashboardHeader: false,
       ),
       NotificationsTab(
         api: widget.api,
@@ -89,7 +97,7 @@ class _ProviderShellState extends State<ProviderShell> {
         child: SafeArea(child: tabs[_index]),
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index > 1 ? 0 : _index,
+        selectedIndex: _index > 2 ? 0 : _index,
         onDestinationSelected: (value) {
           setState(() {
             _index = value;
@@ -106,6 +114,11 @@ class _ProviderShellState extends State<ProviderShell> {
             selectedIcon: Icon(Icons.build_rounded, size: 23),
             label: 'Services',
           ),
+          NavigationDestination(
+            icon: Icon(Icons.calendar_today_outlined, size: 22),
+            selectedIcon: Icon(Icons.calendar_today_rounded, size: 22),
+            label: 'Bookings',
+          ),
         ],
       ),
     );
@@ -118,15 +131,19 @@ class ProviderDashboardTab extends StatefulWidget {
     required this.api,
     required this.profile,
     required this.onSessionExpired,
-    required this.onOpenAlerts,
-    required this.onOpenProfile,
+    this.onOpenAlerts,
+    this.onOpenProfile,
+    this.showOnlyIncoming = true,
+    this.showDashboardHeader = true,
   });
 
   final ApiService api;
   final UserProfile profile;
   final VoidCallback onSessionExpired;
-  final VoidCallback onOpenAlerts;
-  final VoidCallback onOpenProfile;
+  final VoidCallback? onOpenAlerts;
+  final VoidCallback? onOpenProfile;
+  final bool showOnlyIncoming;
+  final bool showDashboardHeader;
 
   @override
   State<ProviderDashboardTab> createState() => _ProviderDashboardTabState();
@@ -244,7 +261,7 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
   Future<void> _providerStatus(int bookingId, String status) async {
     String? otp;
     if (status == 'IN_PROGRESS' || status == 'COMPLETED') {
-      final controller = TextEditingController();
+      var otpInput = '';
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) {
@@ -253,9 +270,15 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
               status == 'IN_PROGRESS' ? 'Enter Start OTP' : 'Enter End OTP',
             ),
             content: TextField(
-              controller: controller,
+              autofocus: true,
               keyboardType: TextInputType.number,
               maxLength: 4,
+              inputFormatters: <TextInputFormatter>[
+                FilteringTextInputFormatter.digitsOnly,
+              ],
+              onChanged: (value) {
+                otpInput = value.trim();
+              },
               decoration: const InputDecoration(
                 labelText: '4-digit OTP',
                 counterText: '',
@@ -274,8 +297,7 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
           );
         },
       );
-      otp = controller.text.trim();
-      controller.dispose();
+      otp = otpInput;
       if (confirmed != true) return;
       if (otp.length != 4) {
         if (!mounted) return;
@@ -521,6 +543,18 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
 
   @override
   Widget build(BuildContext context) {
+    const incomingStatuses = <String>{
+      'PENDING',
+      'ASSIGNED',
+      'ACCEPTED',
+      'CONFIRMED',
+      'IN_PROGRESS',
+    };
+    final incomingBookings = _bookings
+        .where((e) => incomingStatuses.contains(e.status))
+        .toList();
+    final visibleBookings = widget.showOnlyIncoming ? incomingBookings : _bookings;
+
     final total = _bookings.length;
     final pending = _bookings
         .where((e) => e.status == 'PENDING' || e.status == 'ASSIGNED')
@@ -541,199 +575,209 @@ class _ProviderDashboardTabState extends State<ProviderDashboardTab> {
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: <Widget>[
-          SliverToBoxAdapter(
-            child: Container(
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-              decoration: elevatedSurface(
-                color: const Color(0xFF0F3D32),
-                radius: 24,
-                border: const Color(0xFF1A5E4A),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      const Expanded(
-                        child: Text(
-                          'Provider command center',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: widget.onOpenAlerts,
-                        tooltip: 'Alerts',
-                        icon: const Icon(
-                          Icons.notifications_outlined,
-                          color: Colors.white,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: widget.onOpenProfile,
-                        tooltip: 'Profile',
-                        icon: const Icon(
-                          Icons.account_circle_outlined,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.12),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.22),
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
+          if (widget.showDashboardHeader) ...<Widget>[
+            SliverToBoxAdapter(
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                decoration: elevatedSurface(
+                  color: const Color(0xFF0F3D32),
+                  radius: 24,
+                  border: const Color(0xFF1A5E4A),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
                       children: <Widget>[
-                        Icon(
-                          Icons.location_on_outlined,
-                          size: 18,
-                          color: Colors.white.withValues(alpha: 0.96),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
+                        const Expanded(
                           child: Text(
-                            _providerLocationLabel(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            'Provider command center',
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.96),
-                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
+                        if (widget.onOpenAlerts != null)
+                          IconButton(
+                            onPressed: widget.onOpenAlerts,
+                            tooltip: 'Alerts',
+                            icon: const Icon(
+                              Icons.notifications_outlined,
+                              color: Colors.white,
+                            ),
+                          ),
+                        if (widget.onOpenProfile != null)
+                          IconButton(
+                            onPressed: widget.onOpenProfile,
+                            tooltip: 'Profile',
+                            icon: const Icon(
+                              Icons.account_circle_outlined,
+                              color: Colors.white,
+                            ),
+                          ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '$total jobs flowing through your pipeline right now',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontWeight: FontWeight.w400,
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.22),
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          Icon(
+                            Icons.location_on_outlined,
+                            size: 18,
+                            color: Colors.white.withValues(alpha: 0.96),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _providerLocationLabel(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.96),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Total earnings: ₹${totalEarnings.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      color: Color(0xFFA8E6CF),
-                      fontWeight: FontWeight.w600,
+                    const SizedBox(height: 6),
+                    Text(
+                      '$total jobs flowing through your pipeline right now',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontWeight: FontWeight.w400,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: const <Widget>[
-                      _ProviderHeroPill(
-                        icon: Icons.bolt_rounded,
-                        label: 'Fast actions',
+                    const SizedBox(height: 8),
+                    Text(
+                      'Total earnings: ₹${totalEarnings.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        color: Color(0xFFA8E6CF),
+                        fontWeight: FontWeight.w600,
                       ),
-                      _ProviderHeroPill(
-                        icon: Icons.workspace_premium_outlined,
-                        label: 'Premium workflow',
-                      ),
-                      _ProviderHeroPill(
-                        icon: Icons.task_alt_outlined,
-                        label: 'Clear status tracking',
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: const <Widget>[
+                        _ProviderHeroPill(
+                          icon: Icons.bolt_rounded,
+                          label: 'Fast actions',
+                        ),
+                        _ProviderHeroPill(
+                          icon: Icons.workspace_premium_outlined,
+                          label: 'Premium workflow',
+                        ),
+                        _ProviderHeroPill(
+                          icon: Icons.task_alt_outlined,
+                          label: 'Clear status tracking',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 132,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-                children: <Widget>[
-                  _statCard(
-                    'Earnings',
-                    '₹${totalEarnings.toStringAsFixed(0)}',
-                    Icons.currency_rupee_rounded,
-                    const Color(0xFF0D7C66),
-                  ),
-                  const SizedBox(width: 10),
-                  _statCard(
-                    'Total',
-                    '$total',
-                    Icons.dashboard_rounded,
-                    const Color(0xFF0D7C66),
-                  ),
-                  const SizedBox(width: 10),
-                  _statCard(
-                    'Pending',
-                    '$pending',
-                    Icons.pending_actions_rounded,
-                    const Color(0xFFF59E0B),
-                  ),
-                  const SizedBox(width: 10),
-                  _statCard(
-                    'Confirmed',
-                    '$confirmed',
-                    Icons.verified_rounded,
-                    const Color(0xFF0EA5E9),
-                  ),
-                  const SizedBox(width: 10),
-                  _statCard(
-                    'In Progress',
-                    '$inProgress',
-                    Icons.handyman_rounded,
-                    const Color(0xFF8B5CF6),
-                  ),
-                  const SizedBox(width: 10),
-                  _statCard(
-                    'Completed',
-                    '$completed',
-                    Icons.task_alt_rounded,
-                    const Color(0xFF059669),
-                  ),
-                ],
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 132,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                  children: <Widget>[
+                    _statCard(
+                      'Earnings',
+                      '₹${totalEarnings.toStringAsFixed(0)}',
+                      Icons.currency_rupee_rounded,
+                      const Color(0xFF0D7C66),
+                    ),
+                    const SizedBox(width: 10),
+                    _statCard(
+                      'Total',
+                      '$total',
+                      Icons.dashboard_rounded,
+                      const Color(0xFF0D7C66),
+                    ),
+                    const SizedBox(width: 10),
+                    _statCard(
+                      'Pending',
+                      '$pending',
+                      Icons.pending_actions_rounded,
+                      const Color(0xFFF59E0B),
+                    ),
+                    const SizedBox(width: 10),
+                    _statCard(
+                      'Confirmed',
+                      '$confirmed',
+                      Icons.verified_rounded,
+                      const Color(0xFF0EA5E9),
+                    ),
+                    const SizedBox(width: 10),
+                    _statCard(
+                      'In Progress',
+                      '$inProgress',
+                      Icons.handyman_rounded,
+                      const Color(0xFF8B5CF6),
+                    ),
+                    const SizedBox(width: 10),
+                    _statCard(
+                      'Completed',
+                      '$completed',
+                      Icons.task_alt_rounded,
+                      const Color(0xFF059669),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
           SliverToBoxAdapter(
             child: sectionTitle(
-              'Incoming Jobs',
-              subtitle: 'Manage actions and update statuses quickly',
+              widget.showOnlyIncoming ? 'Incoming Jobs' : 'All Bookings',
+              subtitle: widget.showOnlyIncoming
+                  ? 'Manage actions and update statuses quickly'
+                  : 'Track all jobs including completed ones',
             ),
           ),
-          if (_bookings.isEmpty)
+          if (visibleBookings.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
-              child: emptyView('No provider bookings yet'),
+              child: emptyView(
+                widget.showOnlyIncoming
+                    ? 'No incoming provider bookings right now'
+                    : 'No provider bookings yet',
+              ),
             )
           else
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate((context, index) {
-                  final booking = _bookings[index];
+                  final booking = visibleBookings[index];
                   return Padding(
                     padding: EdgeInsets.only(
-                      bottom: index == _bookings.length - 1 ? 0 : 12,
+                      bottom: index == visibleBookings.length - 1 ? 0 : 12,
                     ),
                     child: _bookingCard(booking),
                   );
-                }, childCount: _bookings.length),
+                }, childCount: visibleBookings.length),
               ),
             ),
         ],

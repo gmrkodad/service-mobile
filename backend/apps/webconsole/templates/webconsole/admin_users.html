@@ -1,0 +1,146 @@
+{% extends "webconsole/base.html" %}
+
+{% block page_title %}User Management{% endblock %}
+{% block page_subtitle %}Create, activate, delete, and configure provider capabilities{% endblock %}
+
+{% block content %}
+  <div class="quick-nav">
+    <a href="{% url 'console_admin_dashboard' %}">Dashboard</a>
+    <a href="{% url 'console_admin_bookings' %}">Bookings</a>
+    <a href="{% url 'console_admin_categories' %}">Categories</a>
+    <a href="{% url 'console_admin_services' %}">Services</a>
+    <a href="{% url 'console_admin_tickets' %}">Tickets</a>
+  </div>
+
+  <section class="section">
+    <div class="section-hd">
+      <div>
+        <div class="section-title">Create New User</div>
+        <div class="section-sub">Supports Customer, Provider, Support, and Admin roles</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <form method="post" class="row-actions">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_user">
+        <input name="full_name" placeholder="Full name" style="padding:8px 10px;border:1px solid #cdded5;border-radius:9px;">
+        <input name="phone" placeholder="Phone" style="padding:8px 10px;border:1px solid #cdded5;border-radius:9px;">
+        <input name="email" placeholder="Email" style="padding:8px 10px;border:1px solid #cdded5;border-radius:9px;">
+        <select name="role">
+          {% for value, label in roles %}
+            <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+        <select name="gender">
+          {% for value, label in genders %}
+            <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+        <input name="city" placeholder="City (for provider)" style="padding:8px 10px;border:1px solid #cdded5;border-radius:9px;">
+        <select name="services" multiple size="5" style="min-width:250px;">
+          {% for service in all_services %}
+            <option value="{{ service.id }}">{{ service.category.name }} • {{ service.name }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn primary" type="submit">Create User</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-hd">
+      <div>
+        <div class="section-title">User Directory</div>
+        <div class="section-sub">Search by name, email, or phone</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <form method="get" class="row-actions">
+        <input name="q" value="{{ query }}" placeholder="Search users..." style="padding:8px 10px;border:1px solid #cdded5;border-radius:9px;min-width:260px;">
+        <select name="role">
+          <option value="">All roles</option>
+          {% for value, label in roles %}
+            <option value="{{ value }}" {% if role_filter == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn" type="submit">Apply</button>
+      </form>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Contact</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Provider Services</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+            <tr>
+              <td>
+                <strong>{{ user.display_name }}</strong>
+                <div class="muted">{{ user.city|default:"-" }}</div>
+              </td>
+              <td>
+                {{ user.phone }}
+                <div class="muted">{{ user.email|default:"-" }}</div>
+              </td>
+              <td><span class="status">{{ user.role }}</span></td>
+              <td>
+                {% if user.is_active %}
+                  <span class="status">ACTIVE</span>
+                {% else %}
+                  <span class="status">INACTIVE</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if user.role == "PROVIDER" %}
+                  <details>
+                    <summary style="cursor:pointer;">Edit services</summary>
+                    <form method="post" style="margin-top:8px;">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="update_provider_services">
+                      <input type="hidden" name="user_id" value="{{ user.id }}">
+                      <select name="services" multiple size="6" style="min-width:240px;">
+                        {% for service in all_services %}
+                          <option value="{{ service.id }}" {% if service.id in user.selected_service_ids %}selected{% endif %}>
+                            {{ service.category.name }} • {{ service.name }}
+                          </option>
+                        {% endfor %}
+                      </select>
+                      <div style="margin-top:8px;">
+                        <button class="btn primary" type="submit">Save Services</button>
+                      </div>
+                    </form>
+                  </details>
+                {% else %}
+                  <span class="muted">-</span>
+                {% endif %}
+              </td>
+              <td>
+                <form method="post" style="display:inline-block;">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="toggle_user">
+                  <input type="hidden" name="user_id" value="{{ user.id }}">
+                  <button class="btn" type="submit">{% if user.is_active %}Disable{% else %}Enable{% endif %}</button>
+                </form>
+                <form method="post" style="display:inline-block;">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="delete_user">
+                  <input type="hidden" name="user_id" value="{{ user.id }}">
+                  <button class="btn" type="submit">Delete</button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6">No users found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

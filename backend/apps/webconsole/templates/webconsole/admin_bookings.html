@@ -1,0 +1,97 @@
+{% extends "webconsole/base.html" %}
+
+{% block page_title %}Booking Management{% endblock %}
+{% block page_subtitle %}Assign providers and control booking lifecycle{% endblock %}
+
+{% block content %}
+  <div class="quick-nav">
+    <a href="{% url 'console_admin_dashboard' %}">Dashboard</a>
+    <a href="{% url 'console_admin_users' %}">Users</a>
+    <a href="{% url 'console_admin_services' %}">Services</a>
+    <a href="{% url 'console_admin_tickets' %}">Tickets</a>
+  </div>
+
+  <section class="section">
+    <div class="section-hd">
+      <div>
+        <div class="section-title">Booking Filters</div>
+        <div class="section-sub">Search by booking ID, service, customer, or provider</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <form method="get" class="row-actions">
+        <input name="q" value="{{ query }}" placeholder="Search..." style="padding:8px 10px;border:1px solid #cdded5;border-radius:9px;min-width:260px;">
+        <select name="status">
+          <option value="">All statuses</option>
+          {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn" type="submit">Apply</button>
+      </form>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Service</th>
+            <th>Customer</th>
+            <th>Provider</th>
+            <th>Schedule</th>
+            <th>Status</th>
+            <th>Admin Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for booking in bookings %}
+            <tr>
+              <td>#{{ booking.id }}</td>
+              <td>
+                {% if booking.service %}
+                  {{ booking.service.name }}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+              <td>{{ booking.customer.display_name }}</td>
+              <td>{% if booking.provider %}{{ booking.provider.display_name }}{% else %}-{% endif %}</td>
+              <td>{{ booking.scheduled_date }}<div class="muted">{{ booking.time_slot }}</div></td>
+              <td><span class="status">{{ booking.status }}</span></td>
+              <td>
+                <form method="post" class="row-actions">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="assign_provider">
+                  <input type="hidden" name="booking_id" value="{{ booking.id }}">
+                  <select name="provider_id">
+                    <option value="">Select provider</option>
+                    {% for provider in providers %}
+                      <option value="{{ provider.id }}" {% if booking.provider_id == provider.id %}selected{% endif %}>
+                        {{ provider.display_name }} ({{ provider.city|default:"-" }})
+                      </option>
+                    {% endfor %}
+                  </select>
+                  <button class="btn" type="submit">Assign</button>
+                </form>
+                <form method="post" class="row-actions" style="margin-top:8px;">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="update_status">
+                  <input type="hidden" name="booking_id" value="{{ booking.id }}">
+                  <select name="status">
+                    {% for value, label in status_choices %}
+                      <option value="{{ value }}" {% if booking.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                  <button class="btn primary" type="submit">Update</button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7">No bookings found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
+

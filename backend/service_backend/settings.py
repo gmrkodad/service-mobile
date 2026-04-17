@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.services",
     "apps.bookings",
+    "apps.webconsole",
 ]
 
 MIDDLEWARE = [

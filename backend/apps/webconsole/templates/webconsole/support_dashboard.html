@@ -1,0 +1,177 @@
+{% extends "webconsole/base.html" %}
+
+{% block page_title %}Support Operations Desk{% endblock %}
+{% block page_subtitle %}Dedicated sections for open, active, resolved, and closed tickets{% endblock %}
+
+{% block content %}
+  <div class="quick-nav">
+    <a href="#overview">Overview</a>
+    <a href="#queues">Dedicated Queues</a>
+    <a href="#manage">Manage Tickets</a>
+    <a href="{% url 'console_support_tickets' %}">Open Full Ticket Page</a>
+  </div>
+
+  <div class="grid" id="overview">
+    <div class="card hero">
+      <div class="kpi-label">Open Queue</div>
+      <div class="kpi-value">{{ open_count }}</div>
+      <div class="kpi-foot">Fresh tickets awaiting first response</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">In Progress</div>
+      <div class="kpi-value">{{ in_progress_count }}</div>
+      <div class="kpi-foot">Tickets currently being worked</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Resolved</div>
+      <div class="kpi-value">{{ resolved_count }}</div>
+      <div class="kpi-foot">Resolved and ready for closure review</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Closed</div>
+      <div class="kpi-value">{{ closed_count }}</div>
+      <div class="kpi-foot">Completed support conversations</div>
+    </div>
+  </div>
+
+  <section class="section" id="queues">
+    <div class="section-hd">
+      <div>
+        <div class="section-title">Dedicated Queue Sections</div>
+        <div class="section-sub">Each status has its own focused list for faster handling</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="status-grid">
+        <div class="status-card">
+          <h4>Open</h4>
+          <div class="status-count">{{ open_count }}</div>
+          <div class="mini-list">
+            {% for t in open_tickets %}
+              <div class="mini-item">
+                <div class="line1">#{{ t.id }} • {{ t.issue_type }}</div>
+                <div class="line2">{{ t.requester.display_name }}{% if t.booking_id %} • Booking #{{ t.booking_id }}{% endif %}</div>
+              </div>
+            {% empty %}
+              <div class="muted">No open tickets.</div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="status-card">
+          <h4>In Progress</h4>
+          <div class="status-count">{{ in_progress_count }}</div>
+          <div class="mini-list">
+            {% for t in in_progress_tickets %}
+              <div class="mini-item">
+                <div class="line1">#{{ t.id }} • {{ t.issue_type }}</div>
+                <div class="line2">{{ t.requester.display_name }}{% if t.booking_id %} • Booking #{{ t.booking_id }}{% endif %}</div>
+              </div>
+            {% empty %}
+              <div class="muted">No active tickets.</div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="status-card">
+          <h4>Resolved</h4>
+          <div class="status-count">{{ resolved_count }}</div>
+          <div class="mini-list">
+            {% for t in resolved_tickets %}
+              <div class="mini-item">
+                <div class="line1">#{{ t.id }} • {{ t.issue_type }}</div>
+                <div class="line2">{{ t.requester.display_name }}{% if t.booking_id %} • Booking #{{ t.booking_id }}{% endif %}</div>
+              </div>
+            {% empty %}
+              <div class="muted">No resolved tickets.</div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="status-card">
+          <h4>Closed</h4>
+          <div class="status-count">{{ closed_count }}</div>
+          <div class="mini-list">
+            {% for t in closed_tickets %}
+              <div class="mini-item">
+                <div class="line1">#{{ t.id }} • {{ t.issue_type }}</div>
+                <div class="line2">{{ t.requester.display_name }}{% if t.booking_id %} • Booking #{{ t.booking_id }}{% endif %}</div>
+              </div>
+            {% empty %}
+              <div class="muted">No closed tickets.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="manage">
+    <div class="section-hd">
+      <div>
+        <div class="section-title">Ticket Management Section</div>
+        <div class="section-sub">Filter and update ticket lifecycle in one place</div>
+      </div>
+    </div>
+    <div class="section-body" style="padding-bottom: 2px;">
+      <form method="get" class="row-actions">
+        <label for="status" class="muted" style="font-weight:700;">Filter by status</label>
+        <select id="status" name="status">
+          <option value="">All</option>
+          {% for value, label in ticket_statuses %}
+            <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn" type="submit">Apply</button>
+      </form>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Requester</th>
+            <th>Issue</th>
+            <th>Booking</th>
+            <th>Created</th>
+            <th>Status</th>
+            <th>Update</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tickets %}
+            <tr>
+              <td>#{{ t.id }}</td>
+              <td>{{ t.requester.display_name }}<div class="muted">{{ t.requester.role }}</div></td>
+              <td>
+                <div style="font-weight:700;">{{ t.issue_type }}</div>
+                <div class="muted">{{ t.message|linebreaksbr }}</div>
+              </td>
+              <td>
+                {% if t.booking %}
+                  #{{ t.booking.id }}
+                  <div class="muted">{{ t.booking.service.name|default:"Service" }}</div>
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+              <td>{{ t.created_at }}</td>
+              <td><span class="status">{{ t.status }}</span></td>
+              <td>
+                <form class="row-actions" method="post" action="{% url 'console_ticket_status' t.id %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{% url 'console_support_dashboard' %}{% if selected_status %}?status={{ selected_status }}{% endif %}">
+                  <select name="status">
+                    {% for value, label in ticket_statuses %}
+                      <option value="{{ value }}" {% if t.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                  <button class="btn primary" type="submit">Save</button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7">No tickets found for this filter.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

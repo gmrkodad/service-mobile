@@ -48,3 +48,6 @@ app.*.map.json
 # Local workspace tooling
 /.local/
 /.vscode/settings.json
+/.config/
+/.dartServer/
+/.flutter

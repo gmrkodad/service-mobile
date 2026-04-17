@@ -149,7 +149,7 @@ class CustomerBookingsView(APIView):
 
     def get(self, request):
         rows = Booking.objects.filter(customer=request.user).select_related("service", "provider", "customer")
-        return Response(BookingSerializer(rows, many=True).data)
+        return Response(BookingSerializer(rows, many=True, context={"request": request}).data)
 
 
 class ReviewCreateView(APIView):
@@ -183,7 +183,7 @@ class ProviderDashboardView(APIView):
             "provider",
             "customer",
         )
-        return Response(BookingSerializer(rows, many=True).data)
+        return Response(BookingSerializer(rows, many=True, context={"request": request}).data)
 
 
 class ProviderActionView(APIView):
@@ -264,7 +264,7 @@ class AdminAllBookingsView(APIView):
 
     def get(self, request):
         rows = Booking.objects.all().select_related("service", "provider", "customer")
-        return Response(BookingSerializer(rows, many=True).data)
+        return Response(BookingSerializer(rows, many=True, context={"request": request}).data)
 
 
 class AssignProviderView(APIView):

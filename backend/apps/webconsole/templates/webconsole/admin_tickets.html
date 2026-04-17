@@ -1,0 +1,74 @@
+{% extends "webconsole/base.html" %}
+
+{% block page_title %}Ticket Management{% endblock %}
+{% block page_subtitle %}Admin ticket view with status controls and filters{% endblock %}
+
+{% block content %}
+  <div class="quick-nav">
+    <a href="{% url 'console_admin_dashboard' %}">Dashboard</a>
+    <a href="{% url 'console_support_tickets' %}">Support Ticket View</a>
+    <a href="{% url 'console_admin_reviews' %}">Reviews</a>
+  </div>
+
+  <section class="section">
+    <div class="section-hd">
+      <div>
+        <div class="section-title">All Tickets</div>
+        <div class="section-sub">Full visibility with update controls</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <form method="get" class="row-actions">
+        <input name="q" value="{{ query }}" placeholder="Search ticket ID, issue, requester..." style="padding:8px 10px;border:1px solid #cdded5;border-radius:9px;min-width:280px;">
+        <select name="status">
+          <option value="">All statuses</option>
+          {% for value, label in ticket_statuses %}
+            <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn" type="submit">Apply</button>
+      </form>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Requester</th>
+            <th>Issue</th>
+            <th>Booking</th>
+            <th>Status</th>
+            <th>Update</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tickets %}
+            <tr>
+              <td>#{{ t.id }}</td>
+              <td>{{ t.requester.display_name }}<div class="muted">{{ t.requester.role }}</div></td>
+              <td>{{ t.issue_type }}<div class="muted">{{ t.message|truncatechars:90 }}</div></td>
+              <td>{% if t.booking_id %}#{{ t.booking_id }}{% else %}-{% endif %}</td>
+              <td><span class="status">{{ t.status }}</span></td>
+              <td>
+                <form method="post" class="row-actions">
+                  {% csrf_token %}
+                  <input type="hidden" name="ticket_id" value="{{ t.id }}">
+                  <input type="hidden" name="next" value="{% url 'console_admin_tickets' %}{% if selected_status or query %}?status={{ selected_status }}&q={{ query }}{% endif %}">
+                  <select name="status">
+                    {% for value, label in ticket_statuses %}
+                      <option value="{{ value }}" {% if t.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                  <button class="btn primary" type="submit">Save</button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6">No tickets found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
+

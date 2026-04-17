@@ -1,0 +1,116 @@
+{% extends "webconsole/base.html" %}
+
+{% block page_title %}Service Management{% endblock %}
+{% block page_subtitle %}Add, edit, and remove services shown in customer and provider apps{% endblock %}
+
+{% block content %}
+  <div class="quick-nav">
+    <a href="{% url 'console_admin_dashboard' %}">Dashboard</a>
+    <a href="{% url 'console_admin_categories' %}">Categories</a>
+    <a href="{% url 'console_admin_users' %}">Users</a>
+  </div>
+
+  <section class="section">
+    <div class="section-hd">
+      <div>
+        <div class="section-title">Create Service</div>
+        <div class="section-sub">Equivalent to admin app add-service flow</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <form method="post" class="row-actions">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_service">
+        <select name="category_id">
+          <option value="">Select category</option>
+          {% for category in categories %}
+            <option value="{{ category.id }}">{{ category.name }}</option>
+          {% endfor %}
+        </select>
+        <input name="name" placeholder="Service name" style="padding:8px 10px;border:1px solid #cdded5;border-radius:9px;">
+        <input name="description" placeholder="Description" style="padding:8px 10px;border:1px solid #cdded5;border-radius:9px;min-width:240px;">
+        <input name="image_url" placeholder="Image URL" style="padding:8px 10px;border:1px solid #cdded5;border-radius:9px;min-width:240px;">
+        <input name="base_price" placeholder="Base price" style="padding:8px 10px;border:1px solid #cdded5;border-radius:9px;width:120px;">
+        <input name="starts_from" placeholder="Starts from" style="padding:8px 10px;border:1px solid #cdded5;border-radius:9px;width:120px;">
+        <label class="muted"><input type="checkbox" name="is_active" value="1" checked> Active</label>
+        <button class="btn primary" type="submit">Create</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-hd">
+      <div>
+        <div class="section-title">Service Catalog</div>
+        <div class="section-sub">Edit and delete existing services</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <form method="get" class="row-actions">
+        <input name="q" value="{{ query }}" placeholder="Search services..." style="padding:8px 10px;border:1px solid #cdded5;border-radius:9px;min-width:250px;">
+        <select name="category">
+          <option value="">All categories</option>
+          {% for category in categories %}
+            <option value="{{ category.id }}" {% if category_filter|stringformat:'s' == category.id|stringformat:'s' %}selected{% endif %}>{{ category.name }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn" type="submit">Apply</button>
+      </form>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Category</th>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Image URL</th>
+            <th>Price</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for service in services %}
+            <tr>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="update_service">
+                <input type="hidden" name="service_id" value="{{ service.id }}">
+                <td>#{{ service.id }}</td>
+                <td>
+                  <select name="category_id">
+                    {% for category in categories %}
+                      <option value="{{ category.id }}" {% if service.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+                <td><input name="name" value="{{ service.name }}" style="padding:7px 8px;border:1px solid #cdded5;border-radius:8px;min-width:150px;"></td>
+                <td><input name="description" value="{{ service.description }}" style="padding:7px 8px;border:1px solid #cdded5;border-radius:8px;min-width:220px;"></td>
+                <td><input name="image_url" value="{{ service.image_url }}" style="padding:7px 8px;border:1px solid #cdded5;border-radius:8px;min-width:220px;"></td>
+                <td>
+                  <input name="base_price" value="{{ service.base_price }}" style="padding:7px 8px;border:1px solid #cdded5;border-radius:8px;width:90px;">
+                  <input name="starts_from" value="{{ service.starts_from|default:'' }}" style="padding:7px 8px;border:1px solid #cdded5;border-radius:8px;width:90px;margin-top:4px;">
+                </td>
+                <td><label class="muted"><input type="checkbox" name="is_active" value="1" {% if service.is_active %}checked{% endif %}> Active</label></td>
+                <td>
+                  <button class="btn primary" type="submit">Save</button>
+              </form>
+              <form method="post" style="display:inline-block;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete_service">
+                <input type="hidden" name="service_id" value="{{ service.id }}">
+                <button class="btn" type="submit">Delete</button>
+              </form>
+                </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="8">No services found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
+

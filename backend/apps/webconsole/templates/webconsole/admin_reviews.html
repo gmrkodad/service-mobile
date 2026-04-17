@@ -1,0 +1,56 @@
+{% extends "webconsole/base.html" %}
+
+{% block page_title %}Reviews & Ratings{% endblock %}
+{% block page_subtitle %}Monitor service quality and provider feedback{% endblock %}
+
+{% block content %}
+  <div class="quick-nav">
+    <a href="{% url 'console_admin_dashboard' %}">Dashboard</a>
+    <a href="{% url 'console_admin_tickets' %}">Tickets</a>
+    <a href="{% url 'console_admin_bookings' %}">Bookings</a>
+  </div>
+
+  <section class="section">
+    <div class="section-hd">
+      <div>
+        <div class="section-title">Review Stream</div>
+        <div class="section-sub">Filter by booking/provider/author text</div>
+      </div>
+    </div>
+    <div class="section-body">
+      <form method="get" class="row-actions">
+        <input name="q" value="{{ query }}" placeholder="Search reviews..." style="padding:8px 10px;border:1px solid #cdded5;border-radius:9px;min-width:260px;">
+        <button class="btn" type="submit">Apply</button>
+      </form>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Booking</th>
+            <th>Provider</th>
+            <th>Author</th>
+            <th>Rating</th>
+            <th>Comment</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for review in reviews %}
+            <tr>
+              <td>#{{ review.booking.id }}</td>
+              <td>{{ review.provider.display_name }}</td>
+              <td>{{ review.author.display_name }}</td>
+              <td><span class="status">{{ review.rating }}/5</span></td>
+              <td>{{ review.comment|default:"-" }}</td>
+              <td>{{ review.created_at }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6">No reviews found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
+
